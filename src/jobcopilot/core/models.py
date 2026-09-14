@@ -54,6 +54,8 @@ class BatchReport(TypedDict, total=False):
     stats: JobStats
     market: dict[str, Any]
     knowledge_iteration: dict[str, Any]
+    #: 产出本报告的提示词版本信息（pack / 指纹 / 覆盖了哪些章节）——可追溯性
+    prompt_meta: dict[str, Any]
     jobs: list[JobPosting]
 
 

@@ -21,6 +21,7 @@ from jobcopilot.core.json_utils import parse_json
 from jobcopilot.core.logging import get_logger
 from jobcopilot.core.messages import LLMPort, extract_text, system, user
 from jobcopilot.core.models import BatchReport, JobPosting, normalize_job
+from jobcopilot.core.prompts.compose import digest as prompt_digest
 from jobcopilot.core.prompts.resolver import PromptResolver
 from jobcopilot.core.stats import compute_stats
 
@@ -133,6 +134,15 @@ async def analyze_jobs_batch(
         _llm_call(llm, knowledge_prompt, user_profile, job_summaries, role) if knowledge_prompt else _empty(),
     )
 
+    # 可追溯性（DoD 4）：把「本报告由哪个版本的提示词产出」写进报告本体，
+    # 这样事后能从缓存/存档的报告反查提示词版本，而不必靠外部日志。
+    metas = {name: res.meta(name) for name in (PROMPT_MARKET, PROMPT_KNOWLEDGE)}
+    prompt_meta = {
+        "pack": res.pack or "",
+        "digest": prompt_digest("|".join(f"{k}:{v.digest}" for k, v in sorted(metas.items()))),
+        "prompts": {k: v.to_dict() for k, v in metas.items()},
+    }
+
     return {
         "analyzed_at": datetime.now(timezone.utc).isoformat(),
         "analyzed_at_ts": time.time(),
@@ -142,6 +152,7 @@ async def analyze_jobs_batch(
         "stats": stats,
         "market": market,
         "knowledge_iteration": knowledge,
+        "prompt_meta": prompt_meta,
         "jobs": [
             {
                 "job_id": j.get("job_id", ""),

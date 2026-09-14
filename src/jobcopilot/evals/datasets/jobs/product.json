@@ -1,0 +1,69 @@
+{
+  "name": "product",
+  "description": "AI 产品经理（含车载座舱方向，对应 product pack）。用于检验能否按产品线切分赛道、识别端云协同与评测体系要求，并单独标注车载溢价。",
+  "pack": "product",
+  "keyword": "AI 产品经理",
+  "city": "北京",
+  "jobs": [
+    {
+      "job_id": "prod-01",
+      "title": "AI 产品经理（大模型应用）",
+      "company": "某头部互联网公司",
+      "salary": "45-70K·16薪",
+      "city": "北京",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-01",
+      "jd_text": "负责大模型应用产品的定义与落地：从用户场景抽象需求、输出 PRD、推动算法与工程团队交付、建立效果评测与迭代闭环；要求 3 年以上产品经验、理解大模型能力边界、有数据驱动的迭代方法论。"
+    },
+    {
+      "job_id": "prod-02",
+      "title": "车载智能座舱产品经理",
+      "company": "某新能源车企",
+      "salary": "50-80K·15薪",
+      "city": "上海",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-02",
+      "jd_text": "负责智能座舱 AI 助手的产品规划：多模态交互（语音/视觉）、端云协同架构定义、与车机与硬件团队协同落地；要求有座舱或车载产品经验、理解端侧算力约束、有量产交付经验者优先。"
+    },
+    {
+      "job_id": "prod-03",
+      "title": "企业级 Copilot 产品经理",
+      "company": "某企业服务公司",
+      "salary": "40-65K·14薪",
+      "city": "北京",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-03",
+      "jd_text": "负责企业知识 Copilot 产品：客户需求调研、权限与安全合规设计、效果度量体系搭建、推动私有化交付；要求有 B 端产品经验、理解 RAG 技术链路、能与交付团队协同。"
+    },
+    {
+      "job_id": "prod-04",
+      "title": "AI 产品经理（内容生成方向）",
+      "company": "某内容平台",
+      "salary": "35-60K·15薪",
+      "city": "广州",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-04",
+      "jd_text": "负责 AIGC 内容生成工具的产品设计与增长：创作者需求洞察、生成质量与成本平衡、A/B 实验与数据驱动增长；要求有 C 端产品经验、对内容生态有理解、具备较强的数据敏感度。"
+    },
+    {
+      "job_id": "prod-05",
+      "title": "AI 工具链产品经理（内部效率）",
+      "company": "某大型集团",
+      "salary": "40-60K·14薪",
+      "city": "深圳",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-05",
+      "jd_text": "负责集团内部 AI 工具链的选型、推广与落地：梳理各业务线场景、推动 AI 编码/办公工具在全集团使用、度量效率收益；要求有内部平台或效率工具产品经验、强跨部门推动力。"
+    },
+    {
+      "job_id": "prod-06",
+      "title": "AI 产品经理（评测体系方向）",
+      "company": "某大模型公司",
+      "salary": "45-70K·14薪",
+      "city": "北京",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-06",
+      "jd_text": "负责大模型产品效果评测体系的设计与运营：定义评测指标、建设评测集与自动化流程、驱动模型与产品迭代；要求理解 LLM 评测方法（人工/自动/LLM-as-Judge）、有数据分析和实验设计能力。"
+    }
+  ]
+}

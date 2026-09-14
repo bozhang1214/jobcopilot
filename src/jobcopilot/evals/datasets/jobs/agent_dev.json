@@ -1,0 +1,89 @@
+{
+  "name": "agent_dev",
+  "description": "Agent / RAG / LLM 应用研发岗（对应 engineering pack）。JD 为脱敏后的真实市场样本改写，用于评估批量分析的赛道识别与技能门槛提取。",
+  "pack": "engineering",
+  "keyword": "Agent",
+  "city": "北京",
+  "jobs": [
+    {
+      "job_id": "eng-01",
+      "title": "AI Agent 平台开发工程师",
+      "company": "某头部互联网公司",
+      "salary": "50-80K·16薪",
+      "city": "北京",
+      "source": "手动上传",
+      "job_url": "https://example.com/eng-01",
+      "jd_text": "负责 Agent 编排框架、工具调用协议与评测体系的设计与落地；要求 3 年以上后端经验，熟悉 Python / LangGraph / RAG，有 LLM 应用落地经验者优先；有 MCP、多 Agent 协作、GraphRAG 实践经验加分。"
+    },
+    {
+      "job_id": "eng-02",
+      "title": "大模型应用工程师（RAG 方向）",
+      "company": "某 AI 独角兽",
+      "salary": "45-70K·14薪",
+      "city": "北京",
+      "source": "手动上传",
+      "job_url": "https://example.com/eng-02",
+      "jd_text": "负责企业知识库 RAG 全链路：文档解析、切分策略、向量库选型、召回与重排优化；要求熟悉 LangChain/LlamaIndex、向量数据库（Milvus/Chroma/pgvector），有检索质量评测经验；有 GraphRAG 或混合检索落地经验加分。"
+    },
+    {
+      "job_id": "eng-03",
+      "title": "LLM 推理优化工程师",
+      "company": "某云计算厂商",
+      "salary": "55-85K·15薪",
+      "city": "杭州",
+      "source": "手动上传",
+      "job_url": "https://example.com/eng-03",
+      "jd_text": "负责大模型推理服务的性能优化与成本治理，包括 vLLM/TensorRT-LLM 部署、KV Cache 优化、量化与批处理调度；要求熟悉 CUDA 基础、分布式推理、GPU 资源调度；有千卡级推理集群经验者优先。"
+    },
+    {
+      "job_id": "eng-04",
+      "title": "AI Infra 工程师（评测与可观测）",
+      "company": "某大模型创业公司",
+      "salary": "40-65K·14薪",
+      "city": "上海",
+      "source": "手动上传",
+      "job_url": "https://example.com/eng-04",
+      "jd_text": "负责大模型应用的评测体系与可观测性建设：构建自动化评测流水线（LLM-as-Judge、回归基线）、Token 成本与延迟监控、线上效果归因；要求熟悉 Python、Prometheus/Grafana、有 RAG 或 Agent 系统落地经验。"
+    },
+    {
+      "job_id": "eng-05",
+      "title": "多模态应用开发工程师",
+      "company": "某智能硬件公司",
+      "salary": "45-70K·14薪",
+      "city": "深圳",
+      "source": "手动上传",
+      "job_url": "https://example.com/eng-05",
+      "jd_text": "负责多模态（文本/图像/语音）大模型在端侧与云侧的落地，包括模型选型、端云协同推理、多模态检索；要求熟悉 Python/C++、有视觉或语音模型工程化经验；有端侧推理框架经验加分。"
+    },
+    {
+      "job_id": "eng-06",
+      "title": "后端开发工程师（AI 应用）",
+      "company": "某传统企业数字化部门",
+      "salary": "30-50K·14薪",
+      "city": "成都",
+      "source": "手动上传",
+      "job_url": "https://example.com/eng-06",
+      "jd_text": "负责企业 AI 应用后端服务开发，接入大模型能力完成智能问答、文档处理等场景；要求熟悉 Python/FastAPI、关系型数据库、有良好的工程规范；接触过大模型 API 调用与 Prompt 工程。"
+    },
+    {
+      "job_id": "eng-07",
+      "title": "Agent 框架研发工程师（开源方向）",
+      "company": "某开源商业化公司",
+      "salary": "50-90K·14薪",
+      "city": "北京",
+      "source": "手动上传",
+      "job_url": "https://example.com/eng-07",
+      "jd_text": "参与开源 Agent 框架核心开发，负责运行时、状态管理、工具生态与插件机制；要求深入理解至少一个主流 Agent/LLM 框架源码（LangGraph/AutoGen/Dify），具备优秀的 Python 工程能力与开源协作经验。"
+    },
+    {
+      "job_id": "eng-08",
+      "title": "算法工程师（大模型应用）",
+      "company": "某金融科技公司",
+      "salary": "50-75K·16薪",
+      "city": "上海",
+      "source": "手动上传",
+      "job_url": "https://example.com/eng-08",
+      "jd_text": "负责大模型在金融场景的应用落地：意图识别、信息抽取、风控问答；要求熟悉 NLP 基础、有模型微调（SFT/LoRA）经验、熟悉 RAG 链路；有金融行业合规经验加分。"
+    }
+  ]
+}

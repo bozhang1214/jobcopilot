@@ -23,6 +23,9 @@ classifiers = [
 # 需要「自带模型调用」再装 jobcopilot[providers]。
 dependencies = []
 
+[project.scripts]
+jobcopilot = "jobcopilot.cli.main:main"
+
 [project.optional-dependencies]
 providers = ["httpx>=0.27"]
 dev = [
@@ -37,7 +40,12 @@ dev = [
 where = ["src"]
 
 [tool.setuptools.package-data]
-jobcopilot = ["core/prompts/base/*.md", "core/prompts/packs/**/*.md"]
+jobcopilot = [
+    "core/prompts/base/*.md",
+    "core/prompts/packs/**/*.md",
+    "evals/datasets/**/*.json",
+    "evals/baselines/*.json",
+]
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]

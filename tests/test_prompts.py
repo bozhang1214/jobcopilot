@@ -122,14 +122,29 @@ def test_resolver_request_override_wins(tmp_path: Path) -> None:
 
 
 def test_resolver_pack_beats_base(tmp_path: Path) -> None:
-    """职能族 pack 优先级高于通用 base。"""
+    """职能族 pack 覆盖 base。
+
+    P1 起 pack 是**章节级合并**（只写差异章节），因此：
+    - 无标题的 pack 文件被当作完整提示词，原样生效（本用例即如此）；
+    - 有标题的 pack 文件与 base 合并，来源标记为 ``pack+base``。
+    """
     pack_dir = packs_dir() / "_test_pack"
     pack_dir.mkdir(parents=True, exist_ok=True)
     try:
         (pack_dir / "02_job_analysis.md").write_text("售前 pack 版本", encoding="utf-8")
         r = PromptResolver(pack="_test_pack")
         assert r.get("02_job_analysis.md") == "售前 pack 版本"
-        assert r.source_of("02_job_analysis.md") == "pack"
+        assert r.source_of("02_job_analysis.md") == "pack+base"
+
+        # 有标题时走章节合并：只替换写到的章节，其余保留 base
+        (pack_dir / "02_job_analysis.md").write_text(
+            "## 角色\n售前专用角色\n", encoding="utf-8"
+        )
+        merged = r.get("02_job_analysis.md")
+        assert "售前专用角色" in merged
+        base_text = (base_dir() / "02_job_analysis.md").read_text(encoding="utf-8")
+        assert "## 输入" in merged and "## 输出格式（严格 JSON）" in merged
+        assert merged != base_text
     finally:
         (pack_dir / "02_job_analysis.md").unlink(missing_ok=True)
         pack_dir.rmdir()

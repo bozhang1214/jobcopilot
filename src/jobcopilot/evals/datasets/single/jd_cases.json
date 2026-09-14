@@ -1,0 +1,27 @@
+{
+  "name": "single",
+  "description": "单职位深度分析用例（7 段流水线）。用于 L1 结构断言与 L3 覆盖度/可执行性评审。",
+  "cases": [
+    {
+      "case_id": "single-eng-01",
+      "title": "Agent 平台开发（研发技术栈匹配）",
+      "pack": "engineering",
+      "user_profile": "name: 示例用户\ntarget_role: Agent 开发（应用侧）\ncity: 北京\nskill_stack:\n  strong: [技术管理, 客户端架构, 项目管理]\n  weak: [RAG 工程化, LLM 应用后端, MCP]",
+      "jd_text": "【AI Agent 平台开发工程师】某头部互联网公司 | 50-80K·16薪 | 北京\n职责：负责 Agent 编排框架、工具调用协议与评测体系的设计与落地。\n要求：3 年以上后端经验，熟悉 Python / LangGraph / RAG，有 LLM 应用落地经验者优先；有 MCP、多 Agent 协作、GraphRAG 实践经验加分。"
+    },
+    {
+      "case_id": "single-pre-01",
+      "title": "AI 售前架构师（技术转售前）",
+      "pack": "presales",
+      "user_profile": "name: 示例用户\ntarget_role: AI 解决方案售前\ncity: 北京\nbackground: 技术管理 10 年，带过 20+ 团队，主导过 AI 工具推广\nweak: [招投标流程, 客户高层关系, 行业合规]",
+      "jd_text": "【AI 解决方案售前架构师】某云厂商 | 年包 60-90 万 | 北京\n职责：负责大模型/AI 方案在金融与政企客户的售前支持：客户需求调研、方案设计、高层宣讲、POC 验证与投标支持。\n要求：5 年以上 ToB 售前经验、熟悉云计算与大模型技术栈、具备优秀的方案文档与讲标能力。"
+    },
+    {
+      "case_id": "single-prod-01",
+      "title": "车载座舱产品经理（跨方向转型）",
+      "pack": "product",
+      "user_profile": "name: 示例用户\ntarget_role: AI 产品经理（车载/座舱）\ncity: 北京\nbackground: 车机与客户端技术背景，做过投屏与多媒体\nweak: [产品定义, 用户研究, 商业化]",
+      "jd_text": "【车载智能座舱产品经理】某新能源车企 | 50-80K·15薪 | 上海\n职责：负责智能座舱 AI 助手的产品规划：多模态交互（语音/视觉）、端云协同架构定义、与车机与硬件团队协同落地。\n要求：有座舱或车载产品经验、理解端侧算力约束、有量产交付经验者优先。"
+    }
+  ]
+}

@@ -1,0 +1,194 @@
+{
+  "level": "12",
+  "started_at": "2026-09-14T22:37:33.373938+00:00",
+  "finished_at": "2026-09-14T22:37:33.381322+00:00",
+  "duration_s": 0.01,
+  "passed": true,
+  "pass_rate": 1.0,
+  "metrics": {
+    "per_assertion": {
+      "job_count_match": 1.0,
+      "prompt_schema_conformance": 1.0,
+      "schema_valid": 1.0,
+      "sections_complete": 1.0,
+      "stats_exact_match": 1.0
+    },
+    "case_pass_rate": 1.0
+  },
+  "prompt_digests": {
+    "base/01_job_filter.md": "a63f1e58e0ad1464",
+    "base/02_job_analysis.md": "00d66020036d8d47",
+    "base/03_knowledge_priority.md": "8f59ea0e11355305",
+    "base/04_interview_qa.md": "ccb6644dda5d40e7",
+    "base/05_gap_analysis.md": "97e9d35f112dd763",
+    "base/06_resume_advice.md": "a60fa204ffa35476",
+    "base/07_learning_plan.md": "972e70457ad7d708",
+    "base/08_project_iteration.md": "2f2baf882f7c0e76",
+    "base/09_job_strategy.md": "78f1e0aa88ad50f2",
+    "base/单职位探查.md": "95bba73ae69ea31e",
+    "base/批量职位分析.md": "05bf5ae7ec191c92",
+    "base/职位知识迭代.md": "5ad281cf0bac5bf5",
+    "packs/README.md": "d9b39229430233ee",
+    "packs/engineering/批量职位分析.md": "fd87d25114106291",
+    "packs/presales/批量职位分析.md": "366e52e6b3cc11df",
+    "packs/product/批量职位分析.md": "c7d76d32e6d9abba"
+  },
+  "cases": [
+    {
+      "case_id": "agent_dev",
+      "dataset": "jobs",
+      "pack": "engineering",
+      "assertions": {
+        "passed": true,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "name": "schema_valid",
+            "passed": true,
+            "detail": ""
+          },
+          {
+            "name": "job_count_match",
+            "passed": true,
+            "detail": ""
+          },
+          {
+            "name": "stats_exact_match",
+            "passed": true,
+            "detail": ""
+          },
+          {
+            "name": "prompt_schema_conformance",
+            "passed": true,
+            "detail": ""
+          },
+          {
+            "name": "prompt_schema_conformance",
+            "passed": true,
+            "detail": ""
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "presales",
+      "dataset": "jobs",
+      "pack": "presales",
+      "assertions": {
+        "passed": true,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "name": "schema_valid",
+            "passed": true,
+            "detail": ""
+          },
+          {
+            "name": "job_count_match",
+            "passed": true,
+            "detail": ""
+          },
+          {
+            "name": "stats_exact_match",
+            "passed": true,
+            "detail": ""
+          },
+          {
+            "name": "prompt_schema_conformance",
+            "passed": true,
+            "detail": ""
+          },
+          {
+            "name": "prompt_schema_conformance",
+            "passed": true,
+            "detail": ""
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "product",
+      "dataset": "jobs",
+      "pack": "product",
+      "assertions": {
+        "passed": true,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "name": "schema_valid",
+            "passed": true,
+            "detail": ""
+          },
+          {
+            "name": "job_count_match",
+            "passed": true,
+            "detail": ""
+          },
+          {
+            "name": "stats_exact_match",
+            "passed": true,
+            "detail": ""
+          },
+          {
+            "name": "prompt_schema_conformance",
+            "passed": true,
+            "detail": ""
+          },
+          {
+            "name": "prompt_schema_conformance",
+            "passed": true,
+            "detail": ""
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "single-eng-01",
+      "dataset": "single",
+      "pack": "engineering",
+      "assertions": {
+        "passed": true,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "name": "sections_complete",
+            "passed": true,
+            "detail": ""
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "single-pre-01",
+      "dataset": "single",
+      "pack": "presales",
+      "assertions": {
+        "passed": true,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "name": "sections_complete",
+            "passed": true,
+            "detail": ""
+          }
+        ]
+      }
+    },
+    {
+      "case_id": "single-prod-01",
+      "dataset": "single",
+      "pack": "product",
+      "assertions": {
+        "passed": true,
+        "pass_rate": 1.0,
+        "results": [
+          {
+            "name": "sections_complete",
+            "passed": true,
+            "detail": ""
+          }
+        ]
+      }
+    }
+  ]
+}
