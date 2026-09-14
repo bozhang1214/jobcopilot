@@ -288,6 +288,13 @@ def cmd_doctor(args: argparse.Namespace) -> int:
     return EXIT_OK if ok else EXIT_FAIL
 
 
+def _cmd_publish(args: argparse.Namespace) -> int:
+    """发布提示词（委托给 jobcopilot.publish）。"""
+    from jobcopilot.publish import publish
+
+    return publish(Path(args.out).expanduser(), check_only=args.check)
+
+
 # ============================================================
 # run（直接跑一次分析，免 MCP 客户端）
 # ============================================================
@@ -395,6 +402,11 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--model", help="覆盖模型名")
     sp.add_argument("--prompts-dir", help="本地提示词目录")
     sp.set_defaults(func=cmd_run)
+
+    sp = sub.add_parser("publish", help="把包内提示词发布成可分发目录（含 manifest.json）")
+    sp.add_argument("--out", required=True, help="目标目录（prompts 仓库检出或 nginx 静态目录）")
+    sp.add_argument("--check", action="store_true", help="只校验一致性，不写文件")
+    sp.set_defaults(func=_cmd_publish)
 
     sp = sub.add_parser("doctor", help="自检：提示词 / pack / provider / 数据集")
     sp.add_argument("--provider", default="deepseek", help="检查哪个 provider 的 Key（默认 deepseek）")

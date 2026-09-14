@@ -80,6 +80,7 @@ class ServerConfig:
     port: int = 8765
     allow_source_path: bool = True
     source_root: Path | None = None
+    remote_timeout: float = 20.0
 
     def __post_init__(self) -> None:
         """补默认值：画像路径、HTTP 下的 source_path 默认关闭。"""

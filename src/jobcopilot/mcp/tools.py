@@ -274,44 +274,75 @@ def list_prompt_packs(ctx: ToolContext) -> dict[str, Any]:
     }
 
 
-def sync_prompts(ctx: ToolContext, pack: str | None = None) -> dict[str, Any]:
-    """把提示词（base 或指定 pack）同步到本地目录。
+def sync_prompts(
+    ctx: ToolContext,
+    pack: str | None = None,
+    remote: bool = True,
+    source: str | None = None,
+    overwrite: bool = False,
+) -> dict[str, Any]:
+    """把提示词同步到本地目录（默认走**远端**，带三级回退）。
 
-    写出的是**合并后的完整提示词**而非 pack 片段——本地目录是整文件优先，
+    ⚠️ 写出的是**合并后的完整提示词**而非 pack 片段——本地目录是整文件优先，
     只写片段会丢掉 base 的 JSON 骨架。
 
+    Args:
+        ctx: 执行上下文。
+        pack: 职能族名；``None`` 表示只同步 base。
+        remote: ``True`` 走远端（自建主源 → GitHub 备源 → 包内兜底）；
+            ``False`` 直接用包内提示词（离线 / 排障用）。
+        source: 只从该 URL 同步（覆盖默认源链）。
+        overwrite: 是否覆盖已存在的本地文件（默认不覆盖，保护用户改动）。
+
     Returns:
-        ``{"written": [...], "skipped": [...], "pack": ..., "dir": ...}``。
+        含 ``source``（实际生效的源）/ ``used_fallback`` / ``version`` / 写入列表的结果。
     """
     if pack and pack not in available_packs():
         raise ToolError(f"未知 pack: {pack}；可用: {', '.join(available_packs()) or '（无）'}")
 
     dest = ctx.config.prompts_dir
-    dest.mkdir(parents=True, exist_ok=True)
-    resolver = ctx.resolver(pack)
 
+    if remote:
+        from jobcopilot.core.prompts.remote import sync_to_local
+
+        try:
+            outcome = sync_to_local(
+                dest,
+                pack=pack,
+                sources=[source] if source else None,
+                overwrite=overwrite,
+                timeout=ctx.config.remote_timeout,
+            )
+        except Exception as e:  # noqa: BLE001
+            raise ToolError(f"提示词同步失败: {str(e)[:200]}") from e
+        result = outcome.to_dict()
+        result["dir"] = str(dest)
+        if outcome.source == "package":
+            result["note"] = (
+                "所有远端源均不可用，已回落到包内提示词（版本可能落后于线上）。"
+                "如需排查：检查网络，或用 source 参数指定可用的镜像。"
+            )
+        return result
+
+    # 离线模式：直接用包内提示词
+    resolver = ctx.resolver(pack)
     written, skipped = [], []
+    dest.mkdir(parents=True, exist_ok=True)
     for name in resolver.available():
         text = resolver.get(name)
         if not text:
             continue
         target = dest / name
-        if target.exists() and target.read_text(encoding="utf-8") == text:
+        if target.exists() and not overwrite:
             skipped.append(name)
             continue
         target.write_text(text, encoding="utf-8")
         written.append(name)
-
-    manifest = {
-        "pack": pack or "",
-        "digests": {n: resolver.meta(n).digest for n in resolver.available()},
-    }
-    (dest / ".jobcopilot-manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
     return {
+        "source": "package",
+        "used_fallback": False,
+        "version": "",
         "written": written,
         "skipped": skipped,
-        "pack": pack or "",
         "dir": str(dest),
     }

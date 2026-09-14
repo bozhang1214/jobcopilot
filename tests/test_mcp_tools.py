@@ -233,23 +233,34 @@ def test_list_prompt_packs(tmp_path: Path) -> None:
 
 
 def test_sync_prompts_writes_and_is_idempotent(tmp_path: Path) -> None:
+    """离线模式（remote=False）：直接用包内提示词，测试自洽不依赖网络。"""
     ctx = make_ctx(tmp_path)
-    first = sync_prompts(ctx, pack="presales")
+    first = sync_prompts(ctx, pack="presales", remote=False)
     assert first["written"] and not first["skipped"]
     assert (tmp_path / "prompts" / "批量职位分析.md").exists()
 
-    second = sync_prompts(ctx, pack="presales")
+    second = sync_prompts(ctx, pack="presales", remote=False)
     assert not second["written"] and second["skipped"]
 
 
 def test_sync_prompts_unknown_pack(tmp_path: Path) -> None:
     with pytest.raises(ToolError, match="未知 pack"):
-        sync_prompts(make_ctx(tmp_path), pack="不存在")
+        sync_prompts(make_ctx(tmp_path), pack="不存在", remote=False)
+
+
+def test_sync_prompts_remote_falls_back_to_package(tmp_path: Path) -> None:
+    """远端不可达时自动回落包内，并在结果里说明实际生效的源。"""
+    ctx = make_ctx(tmp_path)
+    out = sync_prompts(ctx, pack="presales", source=(tmp_path / "无此源").as_uri())
+    assert out["source"] == "package"
+    assert out["used_fallback"] is True
+    assert out["errors"] and out["note"]
+    assert (tmp_path / "prompts" / "批量职位分析.md").exists()
 
 
 def test_sync_prompts_output_is_usable(tmp_path: Path) -> None:
     """同步到本地的提示词必须是完整可用的（含 JSON 骨架）。"""
     ctx = make_ctx(tmp_path)
-    sync_prompts(ctx, pack="presales")
+    sync_prompts(ctx, pack="presales", remote=False)
     text = (tmp_path / "prompts" / "批量职位分析.md").read_text(encoding="utf-8")
     assert "年包" in text and "track_heatmap" in text
