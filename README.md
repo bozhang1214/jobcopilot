@@ -111,6 +111,9 @@ src/jobcopilot/
 │   ├── stats.py            # 程序化统计（零 LLM，可精确断言）
 │   ├── models.py           # TypedDict 领域模型
 │   └── logging.py          # 可注入的 logger 工厂
+├── mcp/                    # MCP Server（stdio / streamable-http）+ 工具实现
+├── cli/                    # 命令行（pull / pack / run / eval / doctor）
+├── evals/                  # 评估（L1 断言 / L2 基线 / L3 judge + 数据集与基线）
 └── storage/                # JSON 文件存储默认实现
 ```
 
@@ -153,6 +156,55 @@ jobcopilot doctor                  # 自检：提示词 / pack / provider Key / 
 因为本地目录是整文件优先，只拉片段会丢掉 base 的 JSON 骨架。
 
 **优先级**：请求级 override → 本地目录 → `packs/<职能族>` → `base`。
+
+---
+
+## MCP Server
+
+把内核能力暴露成 **MCP 工具**，任何支持 MCP 的客户端都能直接用。
+
+```bash
+pip install "jobcopilot[mcp]"
+
+jobcopilot-mcp                      # stdio（DSH / Claude Desktop / Cursor）
+jobcopilot-mcp --http --port 8765   # streamable HTTP（云端平台）
+```
+
+### 工具集
+
+| 工具 | 用途 |
+|---|---|
+| `analyze_job` | 单职位 7 段深度分析 |
+| `analyze_jobs_batch` | 批量市场分析（赛道/技能门槛/薪资锚点 + 知识迭代） |
+| `get_profile` / `save_profile` | 读写求职者画像（后续分析自动带上） |
+| `list_prompt_packs` | 列出可用职能包与本地提示词目录状态 |
+| `sync_prompts` | 把提示词同步到本地目录（之后可直接编辑） |
+
+### 两个关键设计
+
+**`source_path`：让服务端自己读文件。** 88 个职位如果当工具参数传，光 JSON 就要烧掉
+大量 token；`source_path` 让服务端直接读本地文件（支持 JSON 数组 / `{"jobs": [...]}` /
+纯文本 JD）。
+
+> ⚠️ **HTTP 形态下 `source_path` 默认禁用**——那面向的是「别人的服务器 + 多用户」，
+> 开放任意路径读取等于暴露宿主机文件系统。确需启用要显式设
+> `JOBCOPILOT_ALLOW_SOURCE_PATH=1`，并建议用 `JOBCOPILOT_SOURCE_ROOT` 限定目录。
+
+**失败必须显式。** 内核的「每步独立降级」在引擎里是对的，但在 API 边界上，
+7 段全空会被调用方误认为「调用成功但没内容」。所以：
+- 全部失败 → 返回结构化错误（含排查方向）
+- 部分失败 → 结果照常返回，但带 `warnings` 指出哪些段落不可信
+
+### 配置（BYOK）
+
+全部走环境变量，Key 不落盘、不进代码：
+
+```bash
+JOBCOPILOT_LLM_PROVIDER=deepseek      # deepseek/qwen/kimi/doubao/zhipu/openai
+JOBCOPILOT_LLM_API_KEY=sk-xxx         # 不填则回落到各厂商自带的环境变量
+JOBCOPILOT_LLM_MODEL=                 # 覆盖模型名
+JOBCOPILOT_PROMPTS_DIR=~/.jobcopilot/prompts
+```
 
 ---
 
@@ -201,7 +253,7 @@ L2 的关键设计是**提示词指纹**：提示词变了而基线没更新就�
 
 ```bash
 pip install -e ".[dev]"
-pytest -q          # 143 passed
+pytest -q          # 177 passed
 ruff check src tests
 mypy src           # strict，零错误
 ```

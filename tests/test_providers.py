@@ -170,3 +170,38 @@ async def test_complete_network_error_retried(monkeypatch: pytest.MonkeyPatch) -
 async def _no_sleep(_seconds: float) -> None:
     """把退避睡眠变成空操作，让重试测试瞬间完成。"""
     return None
+
+
+@pytest.mark.asyncio
+async def test_network_error_message_is_actionable(monkeypatch: pytest.MonkeyPatch) -> None:
+    """网络类异常常常 str() 为空——报错必须带上类型与兜底说明，否则无法排障。
+
+    这条是实测 OpenAI 在国内不可达时发现的：当时错误信息是
+    「OpenAI 调用失败: 」（冒号后面空白），完全看不出发生了什么。
+    """
+
+    class _Boom:
+        def __init__(self, *a, **k) -> None:
+            pass
+
+        async def __aenter__(self):
+            return self
+
+        async def __aexit__(self, *exc) -> None:
+            return None
+
+        async def post(self, *a, **k):
+            import httpx
+
+            raise httpx.ConnectError("")  # 空消息，模拟真实网络失败
+
+    import httpx
+
+    monkeypatch.setattr(httpx, "AsyncClient", _Boom)
+    monkeypatch.setattr("asyncio.sleep", _no_sleep)
+    llm = OpenAICompatLLM(api_key="sk-x", preset="openai", max_retries=0)
+    with pytest.raises(ProviderError) as ei:
+        await llm.complete("job_analysis", MSGS)
+    msg = str(ei.value)
+    assert "ConnectError" in msg, msg
+    assert "网络不可达" in msg, msg

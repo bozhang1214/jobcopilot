@@ -123,7 +123,13 @@ class OpenAICompatLLM:
                 last_err = e
             if attempt < self._max_retries:
                 await asyncio.sleep(2**attempt)
-        raise ProviderError(f"{self._preset.label} 调用失败: {last_err}")
+
+        # 报错必须能排障：网络类异常（ConnectError/Timeout）的 str() 常常是空的，
+        # 只写 "调用失败: " 会让人完全无从下手。带上异常类型名与兜底说明。
+        detail = str(last_err).strip() or "无错误详情，通常是网络不可达或超时"
+        raise ProviderError(
+            f"{self._preset.label} 调用失败（{type(last_err).__name__}）: {detail}"
+        )
 
 
 def _retryable_http(msg: str) -> bool:

@@ -266,6 +266,15 @@ def cmd_doctor(args: argparse.Namespace) -> int:
         print("  provider: 未安装（pip install 'jobcopilot[providers]'）")
 
     try:
+        import mcp  # noqa: F401
+
+        from jobcopilot.mcp.server import build_parser as _mcp_parser  # noqa: F401
+
+        print("  MCP Server: ✅ 依赖就绪（jobcopilot-mcp 可用）")
+    except ImportError as e:
+        print(f"  MCP Server: ⚠️ 未安装（pip install 'jobcopilot[mcp]'）: {e}")
+
+    try:
         batch, single = load_datasets(DEFAULT_DATASETS)
         print(f"  黄金数据集: 批量 {len(batch)} 组 / 单职位 {len(single)} 条")
         if not batch and not single:
@@ -277,6 +286,71 @@ def cmd_doctor(args: argparse.Namespace) -> int:
 
     print("\n✅ 自检通过" if ok else "\n❌ 自检发现问题（见上）")
     return EXIT_OK if ok else EXIT_FAIL
+
+
+# ============================================================
+# run（直接跑一次分析，免 MCP 客户端）
+# ============================================================
+
+
+def cmd_run(args: argparse.Namespace) -> int:
+    """直接跑一次分析（单职位或批量），结果打到 stdout。
+
+    这是「不接 MCP 客户端也能用」的入口，也方便脚本化与排障。
+    """
+    from jobcopilot.mcp.config import ServerConfig
+    from jobcopilot.mcp.tools import ToolContext, ToolError, load_jobs_from_text
+    from jobcopilot.mcp.tools import analyze_job as tool_analyze_job
+    from jobcopilot.mcp.tools import analyze_jobs_batch as tool_analyze_batch
+
+    if args.provider == "stub":
+        print("❌ run 需要真实 provider（不能用 stub）")
+        return EXIT_USAGE
+    try:
+        llm = _build_llm(args, need=True)
+    except Exception as e:  # noqa: BLE001
+        print(f"❌ 构造 provider 失败: {e}")
+        return EXIT_FAIL
+    if llm is None:
+        print("❌ 未能构造 provider（检查 API Key）")
+        return EXIT_FAIL
+
+    cfg = ServerConfig.from_env()
+    if args.prompts_dir:
+        cfg.prompts_dir = Path(args.prompts_dir)
+    ctx = ToolContext(llm=llm, config=cfg)
+
+    text = None
+    if args.file:
+        fp = Path(args.file)
+        if not fp.exists():
+            print(f"❌ 文件不存在: {fp}")
+            return EXIT_USAGE
+        text = fp.read_text(encoding="utf-8")
+
+    try:
+        if args.batch:
+            if text is None and not args.text:
+                print("❌ --batch 需要 --file 或 --text")
+                return EXIT_USAGE
+            jobs = load_jobs_from_text(text) if text is not None else [{"jd_text": args.text}]
+            report = asyncio.run(
+                tool_analyze_batch(
+                    ctx, jobs=jobs, keyword=args.keyword, city=args.city, prompt_pack=args.pack
+                )
+            )
+        else:
+            report = asyncio.run(
+                tool_analyze_job(
+                    ctx, jd_text=args.text, source_path=args.file, prompt_pack=args.pack
+                )
+            )
+    except ToolError as e:
+        print(f"❌ {e}")
+        return EXIT_FAIL
+
+    print(json.dumps(report, ensure_ascii=False, indent=2))
+    return EXIT_OK
 
 
 # ============================================================
@@ -309,6 +383,18 @@ def build_parser() -> argparse.ArgumentParser:
     sp.add_argument("--model", help="覆盖模型名")
     sp.add_argument("--keep-report", action="store_true", help="结果里保留完整报告")
     sp.set_defaults(func=cmd_eval)
+
+    sp = sub.add_parser("run", help="直接跑一次分析（单职位 / 批量，结果输出 JSON）")
+    sp.add_argument("--file", help="JD 或职位列表文件（JSON 数组 / 含 jobs 的对象 / 纯文本）")
+    sp.add_argument("--text", help="直接传 JD 正文")
+    sp.add_argument("--batch", action="store_true", help="批量分析模式")
+    sp.add_argument("--pack", help="职能族 pack")
+    sp.add_argument("--keyword", help="批量分析的关键词")
+    sp.add_argument("--city", help="批量分析的城市")
+    sp.add_argument("--provider", default="deepseek", help="provider（默认 deepseek）")
+    sp.add_argument("--model", help="覆盖模型名")
+    sp.add_argument("--prompts-dir", help="本地提示词目录")
+    sp.set_defaults(func=cmd_run)
 
     sp = sub.add_parser("doctor", help="自检：提示词 / pack / provider / 数据集")
     sp.add_argument("--provider", default="deepseek", help="检查哪个 provider 的 Key（默认 deepseek）")
