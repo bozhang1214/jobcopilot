@@ -60,12 +60,43 @@ INSTRUCTIONS = """JobCopilot —— 求职分析内核。
 """
 
 
+class MissingKeyLLM:
+    """未配置 Key 时的占位 LLM：**照常启动**，调用时才报清晰错误。
+
+    为什么不在启动时直接退出：MCP 客户端（DSH / Claude Desktop）在服务端启动
+    失败时**只会显示"没有工具"**，用户完全看不出是缺 Key——而这时连
+    ``list_prompt_packs`` / ``get_profile`` 这类**不需要 LLM** 的工具也用不了。
+    改成推迟到调用时报错，既保住了非 LLM 工具，又能在模型/用户面前直接给出
+    「设哪个环境变量」的可操作提示。
+    """
+
+    #: 标记：让工具层能**提前**识别出「占位 LLM」并直接报配置错误。
+    #  否则分析器的逐步降级会把配置错误吞掉，用户只看到「7 段全空」。
+    is_placeholder = True
+
+    def __init__(self, config: ServerConfig, reason: str) -> None:
+        self._config = config
+        self._reason = reason
+
+    @property
+    def reason(self) -> str:
+        """缺少 Key 的具体原因（用于拼装可操作的错误文案）。"""
+        return self._reason
+
+    async def complete(self, role: str, messages: Any) -> Any:
+        """任何 LLM 调用都抛出带配置示例的清晰错误。"""
+        raise RuntimeError(
+            f"{self._reason}。请在 MCP 客户端的环境变量里配置，例如："
+            f'{{"JOBCOPILOT_LLM_PROVIDER": "{self._config.provider}", '
+            '"JOBCOPILOT_LLM_API_KEY": "<your-key>"}}'
+        )
+
+
 def make_llm(config: ServerConfig) -> LLMPort:
     """按 BYOK 配置构造 LLM 客户端。
 
-    Raises:
-        SystemExit: 缺少 API Key（**尽早失败并给出可操作的提示**，
-            而不是等第一次工具调用才报错）。
+    缺少 Key 时**不退出**，而是返回 :class:`MissingKeyLLM` 并在 stderr 打印醒目提示：
+    这样 MCP 客户端仍能列出并调用不需 LLM 的工具，需要 LLM 的工具则给出可操作错误。
     """
     from jobcopilot.core.providers import MissingAPIKeyError, OpenAICompatLLM
 
@@ -76,14 +107,15 @@ def make_llm(config: ServerConfig) -> LLMPort:
             preset=config.provider,
         )
     except MissingAPIKeyError as e:
-        print(f"❌ 缺少 API Key：{e}", file=sys.stderr)
+        print(f"⚠️  未配置 LLM API Key（{e}）", file=sys.stderr)
         print(
-            "   MCP 客户端里请设置环境变量，例如：\n"
-            f'     "env": {{"JOBCOPILOT_LLM_PROVIDER": "{config.provider}", '
-            '"JOBCOPILOT_LLM_API_KEY": "<your-key>"}}',
+            "   服务仍会启动：不需 LLM 的工具可用；需要 LLM 的工具会返回可操作的错误。\n"
+            "   配置示例（MCP 客户端 env 段）：\n"
+            f'     JOBCOPILOT_LLM_PROVIDER: {config.provider}\n'
+            "     JOBCOPILOT_LLM_API_KEY: <your-key>",
             file=sys.stderr,
         )
-        raise SystemExit(2) from e
+        return MissingKeyLLM(config, str(e))
 
 
 def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None) -> Any:

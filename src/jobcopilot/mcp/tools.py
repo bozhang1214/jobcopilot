@@ -34,6 +34,21 @@ class ToolError(Exception):
     """工具层的可预期错误（会以清晰文案返回给调用方，而不是堆栈）。"""
 
 
+def ensure_llm_usable(llm: Any) -> None:
+    """LLM 明显不可配置时**提前失败**，给出一条能照做的错误。
+
+    为什么必须提前拦：分析器是「逐步降级」设计，LLM 全挂时只会返回空段落——
+    配置类错误（没设 Key）会被降级逻辑吞掉，用户看到的只是「7 段全空」，
+    完全不知道去改哪个环境变量。
+    """
+    if getattr(llm, "is_placeholder", False):
+        reason = getattr(llm, "reason", "未配置 LLM API Key")
+        raise ToolError(
+            f"{reason}。请在 MCP 客户端的 env 里设置 JOBCOPILOT_LLM_API_KEY"
+            "（以及按需设置 JOBCOPILOT_LLM_PROVIDER），然后重启客户端。"
+        )
+
+
 def usage_snapshot(llm: Any) -> dict[str, int]:
     """读取 LLM 的累计用量（不支持则返回全 0）。"""
     u = getattr(llm, "usage", None)
@@ -172,6 +187,7 @@ async def analyze_job(
     if jd_text is None:
         jd_text = ctx.read_source(source_path or "")
 
+    ensure_llm_usable(ctx.llm)
     resolver = ctx.resolver(pack)
     analyzer = SingleJobAnalyzer(ctx.llm, resolver=resolver)
     profile = user_profile if user_profile is not None else get_profile(ctx)["profile"]
@@ -232,6 +248,7 @@ async def analyze_jobs_batch(
     """
     if jobs is None and source_path is None:
         raise ToolError("必须提供 jobs 或 source_path 之一")
+    ensure_llm_usable(ctx.llm)
     if jobs is None:
         jobs = load_jobs_from_text(ctx.read_source(source_path or ""))
 

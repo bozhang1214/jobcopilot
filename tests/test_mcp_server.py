@@ -221,3 +221,38 @@ async def test_http_transport_end_to_end(tmp_path) -> None:
     finally:
         proc.terminate()
         proc.wait(timeout=10)
+
+
+@pytest.mark.asyncio
+async def test_server_starts_without_api_key(tmp_path) -> None:
+    """没配 Key 时服务必须**照常启动**并列出工具。
+
+    若启动即退出，MCP 客户端只会显示「没有工具」，用户看不出是缺 Key；
+    而且连 list_prompt_packs / get_profile 这类不需要 LLM 的工具也用不了。
+    """
+    env = {
+        **os.environ,
+        "JOBCOPILOT_DATA_DIR": str(tmp_path),
+        "JOBCOPILOT_PROMPTS_DIR": str(tmp_path / "prompts"),
+    }
+    env.pop("JOBCOPILOT_LLM_API_KEY", None)
+    env.pop("DEEPSEEK_API_KEY", None)
+    env.pop("PYTHONPATH", None)
+    params = StdioServerParameters(
+        command=sys.executable, args=["-m", "jobcopilot.mcp.server"], env=env
+    )
+
+    async with stdio_client(params) as (read, write):
+        async with ClientSession(read, write) as session:
+            await session.initialize()
+            tools = await session.list_tools()
+            assert {t.name for t in tools.tools} == EXPECTED_TOOLS
+
+            # 不需要 LLM 的工具必须可用
+            packs = await session.call_tool("list_prompt_packs", {})
+            assert not packs.isError and payload_of(packs)["packs"]
+
+            # 需要 LLM 的工具给出**可操作**的错误（而不是让连接崩掉）
+            res = await session.call_tool("analyze_job", {"jd_text": "JD"})
+            err = payload_of(res).get("error", "")
+            assert "JOBCOPILOT_LLM_API_KEY" in err, err
