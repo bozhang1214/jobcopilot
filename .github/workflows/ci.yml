@@ -1,0 +1,70 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  # 零 LLM 成本的基础门禁：任何 PR 都要过
+  lint-and-test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 安装
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+      - name: Lint（ruff）
+        run: ruff check src tests
+      - name: 类型（mypy strict）
+        run: mypy src
+      - name: 单测
+        run: pytest -q
+
+  # 守门员：提示词/结构退化必须在这里被拦住。
+  # 刻意**只跑 L1+L2**（零 LLM、零 Key）：把 Key 放进 CI 既有泄露风险，费用也不可控。
+  # L3（LLM 评审）由 PR 作者在本地跑并附报告，见 CONTRIBUTING.md §2。
+  eval-gate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 安装
+        run: |
+          python -m pip install --upgrade pip
+          pip install -e '.[dev]'
+      - name: L1+L2 评估（必须与基线一致）
+        run: jobcopilot eval --level 12
+
+  # 打包冒烟：防止「本地测试全过，但新模块/提示词没进 wheel」
+  package:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: "3.11"
+      - name: 构建
+        run: |
+          python -m pip install --upgrade pip build
+          python -m build
+      - name: 干净环境冒烟（验证随包发布的内容）
+        run: |
+          python -m venv /tmp/jc
+          /tmp/jc/bin/pip install dist/*.whl
+          /tmp/jc/bin/jobcopilot --version
+          /tmp/jc/bin/jobcopilot eval --level 12
+      - name: 关键内容必须在 wheel 里
+        run: |
+          python -m zipfile -l dist/*.whl > /tmp/wheel.txt
+          for f in jobcopilot/mcp/request_keys.py jobcopilot/core/prompts/compose.py \
+                   jobcopilot/evals/baselines/v1.json; do
+            grep -q "$f" /tmp/wheel.txt || { echo "❌ 缺少 $f"; exit 1; }
+          done
+          echo "✅ 关键内容齐全"

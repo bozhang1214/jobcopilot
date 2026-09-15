@@ -1,0 +1,12 @@
+# sdist 里带上文档与协作文件（wheel 只需要代码 + package-data）
+include LICENSE
+include README.md
+include CONTRIBUTING.md
+recursive-include docs *.md
+recursive-include scripts *.py
+recursive-include examples *
+recursive-include tests *.py
+# 显式排除构建产物与缓存
+prune build
+prune dist
+global-exclude *.py[cod]

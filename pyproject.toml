@@ -1,22 +1,31 @@
 [build-system]
-requires = ["setuptools>=68.0"]
+# setuptools>=77 才能用 PEP 639 的 license 表达式（见下方 license 字段）
+requires = ["setuptools>=77.0"]
 build-backend = "setuptools.build_meta"
 
 [project]
 name = "jobcopilot"
-version = "0.0.1"
+version = "0.1.0"
 description = "求职分析内核：把一份 JD / 一批职位变成结构化求职情报"
 readme = "README.md"
 requires-python = ">=3.11"
-license = { text = "Apache-2.0" }
+license = "Apache-2.0"
+license-files = ["LICENSE"]
 authors = [{ name = "bozhang1214" }]
 keywords = ["job", "career", "llm", "agent", "mcp", "求职", "招聘分析"]
 classifiers = [
     "Development Status :: 3 - Alpha",
     "Intended Audience :: Developers",
-    "License :: OSI Approved :: Apache Software License",
+    "Intended Audience :: End Users/Desktop",
+    # 注意：PEP 639 下用了 license 表达式就不能再写 License:: classifier，
+    #       否则 setuptools 直接拒绝构建。
+    "Operating System :: OS Independent",
     "Programming Language :: Python :: 3.11",
+    "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Topic :: Office/Business",
     "Topic :: Software Development :: Libraries :: Python Modules",
+    "Typing :: Typed",
 ]
 
 # 内核零第三方依赖：分析逻辑只依赖标准库。
@@ -26,6 +35,15 @@ dependencies = []
 [project.scripts]
 jobcopilot = "jobcopilot.cli.main:main"
 jobcopilot-mcp = "jobcopilot.mcp.server:main"
+
+# ⚠️ [project.urls] 必须放在 [project] 的表内键全部写完之后：
+#    TOML 的表作用域会持续到下一个表头，放早了会把后面的 dependencies 吞进
+#    project.urls 里（构建时报 “project.urls.dependencies must be string”）。
+[project.urls]
+Homepage = "https://github.com/bozhang1214/jobcopilot"
+Repository = "https://github.com/bozhang1214/jobcopilot"
+Issues = "https://github.com/bozhang1214/jobcopilot/issues"
+Documentation = "https://github.com/bozhang1214/jobcopilot/tree/main/docs/integrations"
 
 [project.optional-dependencies]
 providers = ["httpx>=0.27"]

@@ -320,13 +320,30 @@ L2 的关键设计是**提示词指纹**：提示词变了而基线没更新就�
 
 ```bash
 pip install -e ".[dev]"
-pytest -q          # 206 passed
+pytest -q          # 251 passed, 1 skipped
 ruff check src tests
 mypy src           # strict，零错误
+jobcopilot eval --level 12   # 提示词/结构门禁，零成本
 ```
+
+门禁会由 CI 自动跑（`.github/workflows/ci.yml`）：lint + 类型 + 单测 + **L1/L2 评估** +
+打包冒烟（验证新模块/提示词真的进了 wheel）。改提示词的额外要求见
+[`CONTRIBUTING.md`](./CONTRIBUTING.md)。
+
+---
+
+## 文档
+
+| 文档 | 内容 |
+|---|---|
+| [`CONTRIBUTING.md`](./CONTRIBUTING.md) | 开发环境、门禁、提示词改动流程、发布步骤 |
+| [`docs/eval-report.md`](./docs/eval-report.md) | 评估报告（实测数据 + 局限说明 + 复现方式） |
+| [`docs/integrations/`](./docs/integrations/) | 接入文档：**SEKB** / **DSH** / 扣子 / 百炼 / 千帆 / HiAgent / Dify |
+| [`docs/integrations/PRIVACY.md`](./docs/integrations/PRIVACY.md) | 数据流向：三种拓扑下 JD 会经过谁 |
+| [`docs/integrations/DEPLOY-HTTP.md`](./docs/integrations/DEPLOY-HTTP.md) | 把 HTTP 端点暴露成公网 HTTPS（供云端平台调用） |
 
 ---
 
 ## 许可
 
-Apache-2.0，见 [LICENSE](./LICENSE)。
+Apache-2.0，见 [LICENSE](./LICENSE)。贡献即表示同意以同一许可发布。
