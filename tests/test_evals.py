@@ -251,10 +251,34 @@ def test_parse_judge_score_garbage() -> None:
 
 
 def test_load_datasets() -> None:
+    """数据集能被加载，且规模不低于计划 §3.3 的要求。
+
+    刻意**不写死精确条数**（原实现断言 `len(single) == 3`，数据集一扩容就假失败）：
+    这里断言「结构完好 + 达到计划下限」，加用例不会误报，但被误删/截断会失败。
+    """
     batch, single = load_datasets()
-    assert len(batch) == 3
-    assert len(single) == 3
-    assert all(ds.get("pack") for ds in batch)
+    assert batch, "批量数据集为空"
+    assert single, "单职位用例为空"
+
+    # 三个职能族都要有批量数据集，且规模达到计划要求（20 / 10 / 15）
+    by_pack = {ds["pack"]: ds for ds in batch}
+    assert set(by_pack) == {"engineering", "presales", "product"}
+    floors = {"engineering": 20, "presales": 10, "product": 15}
+    for pack, floor in floors.items():
+        jobs = by_pack[pack]["jobs"]
+        assert len(jobs) >= floor, f"{pack} 数据集只有 {len(jobs)} 条，少于计划要求的 {floor}"
+
+    # 每条职位至少要能和「统计口径」对上：有 title 或 jd_text
+    for ds in batch:
+        for j in ds["jobs"]:
+            assert j.get("title") or j.get("jd_text"), f"{ds['name']} 有空职位：{j}"
+        assert ds.get("pack") and isinstance(ds.get("keyword"), str)
+
+    # 单职位用例：字段齐全且 case_id 唯一（重复会污染报告与基线）
+    ids = [c["case_id"] for c in single]
+    assert len(ids) == len(set(ids)), f"case_id 重复：{ids}"
+    for c in single:
+        assert c.get("pack") and c.get("jd_text"), f"用例字段缺失：{c.get('case_id')}"
 
 
 @pytest.mark.asyncio

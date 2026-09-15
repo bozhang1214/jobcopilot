@@ -1,69 +1,179 @@
 {
   "name": "product",
-  "description": "AI 产品经理（含车载座舱方向，对应 product pack）。用于检验能否按产品线切分赛道、识别端云协同与评测体系要求，并单独标注车载溢价。",
+  "description": "产品经理岗（对应 product pack），15 条。含缺公司、中英混杂、只有任职要求（残缺 JD）等结构变异。",
   "pack": "product",
-  "keyword": "AI 产品经理",
+  "keyword": "产品",
   "city": "北京",
   "jobs": [
     {
       "job_id": "prod-01",
-      "title": "AI 产品经理（大模型应用）",
-      "company": "某头部互联网公司",
-      "salary": "45-70K·16薪",
+      "title": "AI 产品经理（Agent 方向）",
+      "company": "某大模型公司",
+      "salary": "40-65K·15薪",
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/prod-01",
-      "jd_text": "负责大模型应用产品的定义与落地：从用户场景抽象需求、输出 PRD、推动算法与工程团队交付、建立效果评测与迭代闭环；要求 3 年以上产品经验、理解大模型能力边界、有数据驱动的迭代方法论。"
+      "jd_text": "负责 Agent 产品的需求定义与迭代：场景选择、能力边界、评测指标与上线节奏；要求懂技术实现代价，能与算法和后端对话，独立产出 PRD 与验收标准。"
     },
     {
       "job_id": "prod-02",
       "title": "车载智能座舱产品经理",
       "company": "某新能源车企",
-      "salary": "50-80K·15薪",
+      "salary": "35-55K·15薪",
       "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/prod-02",
-      "jd_text": "负责智能座舱 AI 助手的产品规划：多模态交互（语音/视觉）、端云协同架构定义、与车机与硬件团队协同落地；要求有座舱或车载产品经验、理解端侧算力约束、有量产交付经验者优先。"
+      "jd_text": "负责座舱语音与多模态交互的产品设计；要求熟悉车机交互约束（安全、时延、离线），有语音或多模态产品经验优先。"
     },
     {
       "job_id": "prod-03",
-      "title": "企业级 Copilot 产品经理",
+      "title": "B 端 SaaS 产品经理",
       "company": "某企业服务公司",
-      "salary": "40-65K·14薪",
-      "city": "北京",
+      "salary": "30-48K·14薪",
+      "city": "深圳",
       "source": "手动上传",
       "job_url": "https://example.com/prod-03",
-      "jd_text": "负责企业知识 Copilot 产品：客户需求调研、权限与安全合规设计、效果度量体系搭建、推动私有化交付；要求有 B 端产品经验、理解 RAG 技术链路、能与交付团队协同。"
+      "jd_text": "负责中小企业协作产品的功能规划与商业化；要求熟悉 B 端交付与续费逻辑，能平衡定制需求与产品通用性。"
     },
     {
       "job_id": "prod-04",
-      "title": "AI 产品经理（内容生成方向）",
-      "company": "某内容平台",
-      "salary": "35-60K·15薪",
-      "city": "广州",
+      "title": "数据产品经理",
+      "company": "某数据平台公司",
+      "salary": "32-50K·14薪",
+      "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/prod-04",
-      "jd_text": "负责 AIGC 内容生成工具的产品设计与增长：创作者需求洞察、生成质量与成本平衡、A/B 实验与数据驱动增长；要求有 C 端产品经验、对内容生态有理解、具备较强的数据敏感度。"
+      "jd_text": "负责数据资产与指标平台的产品设计：口径治理、血缘、权限与自助分析；要求熟悉数仓概念，能把数据问题转成产品机制。"
     },
     {
       "job_id": "prod-05",
-      "title": "AI 工具链产品经理（内部效率）",
-      "company": "某大型集团",
-      "salary": "40-60K·14薪",
-      "city": "深圳",
+      "title": "大模型应用产品经理",
+      "company": "某互联网大厂",
+      "salary": "45-70K·16薪",
+      "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/prod-05",
-      "jd_text": "负责集团内部 AI 工具链的选型、推广与落地：梳理各业务线场景、推动 AI 编码/办公工具在全集团使用、度量效率收益；要求有内部平台或效率工具产品经验、强跨部门推动力。"
+      "jd_text": "负责大模型在内容与办公场景的落地：效果预期管理、人机协同流程设计、成本与体验权衡；要求有 LLM 产品上线经验。"
     },
     {
       "job_id": "prod-06",
-      "title": "AI 产品经理（评测体系方向）",
-      "company": "某大模型公司",
-      "salary": "45-70K·14薪",
-      "city": "北京",
+      "title": "增长产品经理",
+      "company": "某消费互联网公司",
+      "salary": "35-52K·14薪",
+      "city": "深圳",
       "source": "手动上传",
       "job_url": "https://example.com/prod-06",
-      "jd_text": "负责大模型产品效果评测体系的设计与运营：定义评测指标、建设评测集与自动化流程、驱动模型与产品迭代；要求理解 LLM 评测方法（人工/自动/LLM-as-Judge）、有数据分析和实验设计能力。"
+      "jd_text": "负责拉新与留存的产品策略：漏斗分析、激励体系、A/B 实验设计；要求数据敏感，能独立完成实验设计与复盘。"
+    },
+    {
+      "job_id": "prod-07",
+      "title": "平台产品经理（开放能力）",
+      "company": "某云厂商",
+      "salary": "40-60K·15薪",
+      "city": "北京",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-07",
+      "jd_text": "负责开放平台的能力规划：API 设计原则、配额与计费、开发者体验；要求有技术背景，能阅读接口文档并参与 API 评审。"
+    },
+    {
+      "job_id": "prod-08",
+      "title": "语音交互产品经理",
+      "company": "某智能硬件公司",
+      "salary": "32-50K·14薪",
+      "city": "深圳",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-08",
+      "jd_text": "负责语音助手的能力定义与体验优化：唤醒、多轮、纠错与个性化；要求熟悉语音链路各环节的误差来源。"
+    },
+    {
+      "job_id": "prod-09",
+      "title": "多模态交互产品经理",
+      "company": "某终端厂商",
+      "salary": "38-56K·15薪",
+      "city": "深圳",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-09",
+      "jd_text": "负责多模态交互（语音 + 视觉 + 触控）的产品定义与体验标准；要求有多模态或语音产品经验，能定义降级与兜底策略。"
+    },
+    {
+      "job_id": "prod-10",
+      "title": "大模型产品经理（评测方向）",
+      "company": "某大模型公司",
+      "salary": "42-62K·15薪",
+      "city": "北京",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-10",
+      "jd_text": "负责大模型能力的评测体系与产品化：评测集设计、人工标注流程、质量看板；要求能把「效果好」拆成可度量的指标。"
+    },
+    {
+      "job_id": "prod-11",
+      "title": "国际化产品经理",
+      "company": "某出海公司",
+      "salary": "35-55K·14薪",
+      "city": "深圳",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-11",
+      "jd_text": "负责产品出海本地化：多语言、支付、合规与运营节奏；要求英语可作为工作语言，有海外市场经验优先。"
+    },
+    {
+      "job_id": "prod-12",
+      "title": "风控产品经理",
+      "company": "某金融科技公司",
+      "salary": "38-58K·15薪",
+      "city": "上海",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-12",
+      "jd_text": "负责风控策略平台的产品设计：规则与模型协同、策略灰度、案件闭环；要求理解风控指标口径与业务代价。"
+    },
+    {
+      "job_id": "prod-13",
+      "title": "供应链产品经理",
+      "company": "某零售集团",
+      "salary": "30-46K·13薪",
+      "city": "深圳",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-13",
+      "jd_text": "负责补货与库存产品的规划：需求预测、履约链路、异常处理；要求熟悉供应链基本模型与系统边界。"
+    },
+    {
+      "job_id": "prod-14",
+      "title": "商业化产品经理",
+      "company": "某内容平台",
+      "salary": "35-55K·14薪",
+      "city": "北京",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-14",
+      "jd_text": "负责广告与会员的商业化产品设计：流量分配、定价实验、收入与体验平衡；要求强数据分析能力。"
+    },
+    {
+      "job_id": "prod-15",
+      "title": "AI 产品运营（实习转正）",
+      "company": "",
+      "salary": "8-12K·13薪",
+      "city": "北京",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-15",
+      "jd_text": "负责 AI 产品的用户运营与内容策划；要求有较强的文字表达能力，能独立完成活动方案与数据复盘。"
+    },
+    {
+      "job_id": "prod-16",
+      "title": "Developer Experience 产品经理",
+      "company": "某开发者平台",
+      "salary": "40-58K·15薪",
+      "city": "北京",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-16",
+      "jd_text": "负责开发者体验（DX）产品：onboarding、文档、SDK 与 playground 的规划与迭代。要求能读懂代码与 API，熟悉 developer journey 的常见断点，有 DevRel 或平台产品经验优先。Metrics: activation rate, time-to-first-call, docs NPS。"
+    },
+    {
+      "job_id": "prod-17",
+      "title": "产品经理（智能客服）",
+      "company": "某客服系统厂商",
+      "salary": "30-45K·14薪",
+      "city": "上海",
+      "source": "手动上传",
+      "job_url": "https://example.com/prod-17",
+      "jd_text": "任职要求：3 年以上 B 端产品经验；熟悉客服或工单系统；具备较强的逻辑与文档能力；有 AI 能力接入经验者优先。"
     }
   ]
 }

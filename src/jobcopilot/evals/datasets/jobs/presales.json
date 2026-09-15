@@ -1,69 +1,129 @@
 {
   "name": "presales",
-  "description": "AI 解决方案售前 / 解决方案架构师（对应 presales pack）。用于检验能否把赛道切分维度从「职能」切到「客户与云厂商生态」，并识别年包口径。",
+  "description": "售前 / 解决方案架构岗（对应 presales pack），10 条。含缺薪资、极短 JD、纯英文等结构变异。",
   "pack": "presales",
-  "keyword": "解决方案售前",
-  "city": "北京",
+  "keyword": "售前",
+  "city": "上海",
   "jobs": [
     {
       "job_id": "pre-01",
       "title": "AI 解决方案售前架构师",
       "company": "某云厂商",
       "salary": "年包 60-90 万",
-      "city": "北京",
+      "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-01",
-      "jd_text": "负责大模型/AI 方案在金融与政企客户的售前支持：客户需求调研、方案设计、高层宣讲、POC 验证与投标支持；要求 5 年以上 ToB 售前经验、熟悉云计算与大模型技术栈、具备优秀的方案文档与讲标能力。"
+      "jd_text": "负责大模型与 Agent 方案的售前技术支撑：客户需求拆解、方案设计、POC 落地与投标答辩；要求具备后端或算法背景，能把技术能力翻译成客户价值，独立完成方案文档与演示。"
     },
     {
       "job_id": "pre-02",
-      "title": "解决方案架构师（华为云生态）",
-      "company": "某系统集成商",
-      "salary": "年包 45-70 万",
-      "city": "深圳",
+      "title": "行业解决方案专家（金融）",
+      "company": "某 ToB 大厂",
+      "salary": "40-60K·15薪",
+      "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-02",
-      "jd_text": "面向华为云生态提供 AI 解决方案售前支持，负责与华为云原厂协同、行业方案沉淀与复制推广；要求熟悉华为云产品体系、有政企客户交付经验、能独立完成技术方案与投标文件。"
+      "jd_text": "面向银行与保险客户，负责风控、客服、投研场景的方案设计；要求熟悉金融合规约束，有从售前到交付的完整项目经验。"
     },
     {
       "job_id": "pre-03",
-      "title": "大模型售前工程师",
-      "company": "某大模型创业公司",
-      "salary": "年包 40-65 万",
-      "city": "北京",
+      "title": "技术售前顾问（数据平台）",
+      "company": "某数据智能公司",
+      "salary": "35-50K·14薪",
+      "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-03",
-      "jd_text": "负责大模型产品在行业客户的售前技术支撑：需求对接、Demo 搭建与演示、方案撰写、竞争分析；要求有 LLM 应用动手能力（能自己写 Demo）、良好的客户沟通与表达能力。"
+      "jd_text": "负责数据平台产品的售前支持：需求调研、方案编写、竞品对比与报价配合；要求熟悉数仓与数据治理，能独立完成客户技术交流。"
     },
     {
       "job_id": "pre-04",
-      "title": "行业解决方案专家（制造/能源）",
-      "company": "某工业软件公司",
-      "salary": "年包 50-80 万",
+      "title": "大模型与 RAG 解决方案售前",
+      "company": "某 AI 创业公司",
+      "salary": "38-55K·14薪",
       "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-04",
-      "jd_text": "负责 AI 在制造与能源行业的解决方案设计与售前推进，需深入理解行业业务流程与合规要求，具备高层客户关系维护能力；要求 8 年以上行业经验、有成功的标杆项目落地案例。"
+      "jd_text": "为客户设计大模型与 RAG 落地路径：场景筛选、效果预期管理、成本测算与验收标准；要求有 LLM 应用实施经验，能写清「什么能做、什么做不到」。"
     },
     {
       "job_id": "pre-05",
-      "title": "售前技术经理（团队管理）",
-      "company": "某上市软件公司",
-      "salary": "年包 70-100 万",
-      "city": "北京",
+      "title": "智能评测平台售前顾问",
+      "company": "某测试平台公司",
+      "salary": "33-48K·14薪",
+      "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-05",
-      "jd_text": "带领 5-8 人售前团队支撑全国 AI 业务拓展，负责售前方法论沉淀、重大项目支撑、团队能力建设与业绩达成；要求有售前团队管理经验、熟悉招投标全流程、具备跨区域协同能力。"
+      "jd_text": "负责 AI 评测平台（Evaluation）的售前支持：评测集设计、指标口径对齐、试点验收；要求理解评测与业务指标的关系。"
     },
     {
       "job_id": "pre-06",
-      "title": "技术售前顾问（海外方向）",
-      "company": "某出海 SaaS 公司",
-      "salary": "年包 55-85 万",
-      "city": "杭州",
+      "title": "AI 安全解决方案售前",
+      "company": "某安全厂商",
+      "salary": "36-52K·14薪",
+      "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-06",
-      "jd_text": "面向海外客户提供 AI 产品售前支持，负责英文方案撰写与宣讲、海外渠道协同、POC 推进；要求英语可作为工作语言、有海外 ToB 售前经验、能适应出差。"
+      "jd_text": "负责 AI 安全产品的售前方案：提示注入防护、数据合规、审计与加固；要求能把监管要求翻译成技术方案。"
+    },
+    {
+      "job_id": "pre-07",
+      "title": "售前技术支持（云原生）",
+      "company": "某云服务商",
+      "salary": "30-45K·14薪",
+      "city": "上海",
+      "source": "手动上传",
+      "job_url": "https://example.com/pre-07",
+      "jd_text": "负责容器与中间件产品的售前技术方案；要求熟悉 Kubernetes、可观测性与迁移方案，能支撑招投标技术标。"
+    },
+    {
+      "job_id": "pre-08",
+      "title": "企业知识库解决方案顾问",
+      "company": "某办公软件公司",
+      "salary": "32-48K·14薪",
+      "city": "上海",
+      "source": "手动上传",
+      "job_url": "https://example.com/pre-08",
+      "jd_text": "负责知识管理方案的售前：梳理客户文档资产、设计权限与检索方案、推动试点；要求具备信息架构能力与较强的文档表达。"
+    },
+    {
+      "job_id": "pre-09",
+      "title": "AI 应用交付方案专家",
+      "company": "某系统集成商",
+      "salary": "35-52K·14薪",
+      "city": "上海",
+      "source": "手动上传",
+      "job_url": "https://example.com/pre-09",
+      "jd_text": "负责 AI 项目的方案与交付衔接：技术选型、里程碑设计、风险评估；要求能在客户现场独立推进，有招投标经验优先。"
+    },
+    {
+      "job_id": "pre-10",
+      "title": "政企解决方案架构师",
+      "company": "某信创厂商",
+      "salary": "",
+      "city": "上海",
+      "source": "手动上传",
+      "job_url": "https://example.com/pre-10",
+      "jd_text": "面向政企客户提供信创与 AI 融合方案；要求熟悉国产化软硬件栈与等保要求，能独立完成方案与汇报材料。"
+    },
+    {
+      "job_id": "pre-11",
+      "title": "售前工程师（应届可投）",
+      "company": "某 SaaS 公司",
+      "salary": "15-25K·13薪",
+      "city": "上海",
+      "source": "手动上传",
+      "job_url": "https://example.com/pre-11",
+      "jd_text": "协助售前完成资料整理与演示环境搭建；要求沟通表达好、学习能力强，接受短期出差。"
+    },
+    {
+      "job_id": "pre-12",
+      "title": "Pre-sales Solution Architect",
+      "company": "Global Cloud Vendor",
+      "salary": "Negotiable",
+      "city": "上海",
+      "source": "手动上传",
+      "job_url": "https://example.com/pre-12",
+      "jd_text": "Own the technical win in enterprise deals. Deliver solution design, POC, security review responses, and architecture workshops. Requirements: strong backend or data background, excellent storytelling in English and Chinese, experience with LLM or data platforms. Travel up to 30%."
     }
   ]
 }
