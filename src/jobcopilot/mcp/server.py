@@ -198,6 +198,7 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
         prompt_pack: str | None = None,
         prompt_override: str | None = None,
         user_profile: str | None = None,
+        max_chars: int | None = None,
     ) -> dict[str, Any]:
         """单职位深度分析（7 段：深度解析/知识优先级/面试问答/差距/简历/项目/策略）。
 
@@ -208,6 +209,8 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
             prompt_pack: 职能提示词包名。
             prompt_override: 直接覆盖"批量职位分析"提示词的整段文本（高级用法）。
             user_profile: 按请求注入的求职者画像（多用户宿主用；不传则用已保存的）。
+            max_chars: 整份报告的字符预算。会作为**输出长度约束写进提示词**，由模型
+                自己写短（不做事后裁剪）；用于适配云端平台的单次响应上限。
         """
         return await guard(
             _analyze_job,
@@ -228,6 +231,7 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
         prompt_pack: str | None = None,
         prompt_override: str | None = None,
         user_profile: str | None = None,
+        max_chars: int | None = None,
     ) -> dict[str, Any]:
         """批量职位市场分析（赛道热力/技能门槛/薪资锚点 + 知识迭代建议）。
 
@@ -241,6 +245,8 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
             prompt_pack: 职能提示词包名。
             prompt_override: 覆盖"批量职位分析"提示词的整段文本。
             user_profile: 按请求注入的求职者画像（多用户宿主用；不传则用已保存的）。
+            max_chars: 整份报告的字符预算。会作为**输出长度约束写进提示词**，由模型
+                自己写短（不做事后裁剪）；用于适配云端平台的单次响应上限。
         """
         return await guard(
             _analyze_jobs_batch,
@@ -251,6 +257,7 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
             prompt_pack=prompt_pack,
             prompt_override=prompt_override,
             user_profile=user_profile,
+            max_chars=max_chars,
         )
 
     @mcp.tool()

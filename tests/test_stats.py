@@ -5,26 +5,68 @@ from jobcopilot.core.stats import ROLE_OTHER, classify_role, compute_stats
 
 
 def test_classify_role_matches_expected_buckets() -> None:
-    """规则表按优先级命中，首个匹配即归类。
+    """规则按「职能名词 → 领域词」两级命中。
 
-    ⚠️ 这里的期望值是**从现网实现实测反推**的，用于锁死行为。
-    其中两例结果违反直觉，是规则顺序导致的历史怪癖（P1 调整规则时必须
-    同步更新黄金数据集并说明影响）：
-
-    - ``大模型产品经理`` → ``算法/模型``（「算法/模型」规则里的「大模型」先命中）
-    - ``数据策略运营`` → ``产品经理``（「产品经理」规则里的「策略」先命中）
+    这里锁的是**修正后**的行为：职位名词优先于领域词，所以「大模型产品经理」是
+    产品经理而不是算法岗、「大模型平台架构师」是架构师而不是算法岗。
+    （修正前的三处反直觉结果记录在 ``stats.py`` 的注释里，并已同步更新黄金数据集。）
     """
     cases = {
         "大模型算法工程师": "算法/模型",
         "AI Agent 平台研发工程师": "研发/工程",
         "售前解决方案架构师": "架构师/Leader",
-        "大模型产品经理": "算法/模型",  # 怪癖：非「产品经理」
+        # 修正点：领域词不再抢走职能判定
+        "大模型产品经理": "产品经理",
+        "大模型平台架构师": "架构师/Leader",
+        "技术售前顾问（数据平台）": "其他",
+        # 其余行为保持
         "安全运营专家": "安全",
         "模型评测工程师": "评测/质量",
-        "数据策略运营": "产品经理",  # 怪癖：非「运营/策略」
+        "数据策略运营": "运营/策略",
     }
     for title, expected in cases.items():
         assert classify_role(title) == expected, title
+
+
+def test_classify_role_bucket_names_unchanged() -> None:
+    """**桶名集合不得变化**（2026-09-15 与 owner 确认：只改归类口径，不新增桶）。
+
+    新增/删除桶会改变报告里 role_distribution 的类别名，前端展示与下游聚合都要跟着改，
+    属于更大的口径变更 —— 用这条断言把它变成需要显式决策的事。
+    """
+    from jobcopilot.core.stats import DOMAIN_RULES, ROLE_NOUN_RULES
+
+    expected = {
+        "产品经理", "架构师/Leader", "安全", "评测/质量", "运营/策略", "算法/模型", "研发/工程",
+    }
+    assert {r for r, _ in ROLE_NOUN_RULES} | {r for r, _ in DOMAIN_RULES} == expected
+
+
+def test_dataset_role_annotations_match_classifier() -> None:
+    """数据集里每条职位的 ``expected_role`` 必须与分类器判定一致。
+
+    为什么要有这条：归类规则一改，报告里的 ``role_distribution`` 数字就变，而这是
+    **用户可见**的口径变化。把期望值钉在数据里，规则再调整就有据可依 ——
+    否则只能靠「跑一次看看数字对不对」，没有契约。
+    """
+    from jobcopilot.evals.runner import load_datasets
+
+    batch, _ = load_datasets()
+    assert batch, "批量数据集为空"
+    mismatches: list[str] = []
+    missing: list[str] = []
+    for ds in batch:
+        for j in ds["jobs"]:
+            exp = j.get("expected_role")
+            if not exp:
+                missing.append(f"{ds['name']}/{j.get('job_id')}")
+                continue
+            got = classify_role(j.get("title") or "")
+            if got != exp:
+                mismatches.append(f"{ds['name']}/{j.get('job_id')} 《{j.get('title')}》标注={exp} 实际={got}")
+
+    assert not missing, f"以下职位缺少 expected_role 标注：{missing}"
+    assert not mismatches, "归类与标注不一致：\n  " + "\n  ".join(mismatches)
 
 
 def test_classify_role_priority_order() -> None:

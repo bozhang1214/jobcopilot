@@ -34,6 +34,34 @@ class ToolError(Exception):
     """工具层的可预期错误（会以清晰文案返回给调用方，而不是堆栈）。"""
 
 
+#: `max_chars` 的合理区间：低于 MIN 模型只能放弃内容（收益为负），高于 MAX 等于没约束
+MIN_MAX_CHARS = 300
+MAX_MAX_CHARS = 200_000
+
+
+def normalize_max_chars(value: Any) -> int | None:
+    """校验并规范化 ``max_chars``（字符预算）。
+
+    为什么要有上下限：预算太小会让模型为了「够短」而丢内容（比超限更糟），
+    太大则等于没有约束、白白让调用方以为设了限制。
+
+    Raises:
+        ToolError: 类型不对或超出区间 —— 给可操作提示而不是静默忽略。
+    """
+    if value is None:
+        return None
+    if isinstance(value, bool) or not isinstance(value, int):
+        raise ToolError(f"max_chars 必须是整数（收到 {type(value).__name__}）")
+    if value < MIN_MAX_CHARS:
+        raise ToolError(
+            f"max_chars 太小（{value}）：低于 {MIN_MAX_CHARS} 时模型只能丢弃内容，"
+            f"结果会比超限更差。建议 ≥ {MIN_MAX_CHARS * 7}（单职位）或 ≥ 3000（批量）。"
+        )
+    if value > MAX_MAX_CHARS:
+        raise ToolError(f"max_chars 过大（{value}）：超过 {MAX_MAX_CHARS} 等于没有约束")
+    return value
+
+
 def ensure_llm_usable(llm: Any) -> None:
     """LLM 明显不可配置时**提前失败**，给出一条能照做的错误。
 
@@ -222,6 +250,7 @@ async def analyze_job(
     prompt_override: str | None = None,
     job_meta: dict[str, Any] | None = None,
     user_profile: str | None = None,
+    max_chars: int | None = None,
 ) -> dict[str, Any]:
     """单职位 7 段分析。
 
@@ -247,7 +276,7 @@ async def analyze_job(
 
     ensure_llm_usable(ctx.llm)
     resolver = ctx.resolver(pack)
-    analyzer = SingleJobAnalyzer(ctx.llm, resolver=resolver)
+    analyzer = SingleJobAnalyzer(ctx.llm, resolver=resolver, max_chars=normalize_max_chars(max_chars))
     profile = user_profile if user_profile is not None else get_profile(ctx)["profile"]
     _before = usage_snapshot(ctx.llm)
     result = await analyzer.analyze(jd_text=jd_text, job_meta=job_meta, user_profile=profile)
@@ -289,6 +318,7 @@ async def analyze_jobs_batch(
     prompt_pack: str | None = None,
     prompt_override: str | None = None,
     user_profile: str | None = None,
+    max_chars: int | None = None,
 ) -> dict[str, Any]:
     """批量市场分析（返回完整报告，含 stats / market / knowledge_iteration）。
 
@@ -303,6 +333,8 @@ async def analyze_jobs_batch(
         prompt_pack: 职能族 pack。
         prompt_override: 覆盖「批量职位分析」提示词的整段文本。
         user_profile: **按请求**注入的求职者画像（多用户宿主必须走这个参数）。
+        max_chars: 整份报告的字符预算（按 7 段均摊交给模型；**不做事后裁剪**）。
+            用于适配云端平台的单次响应上限（Dify 约 68000 字符、千帆 1M）。
 
     Raises:
         ToolError: 既没给 jobs 也没给 source_path，或读文件/解析失败。
@@ -326,6 +358,7 @@ async def analyze_jobs_batch(
         keyword=keyword or "",
         city=city or "",
         resolver=ctx.resolver(prompt_pack, prompt_override),
+        max_chars=normalize_max_chars(max_chars),
     )
     if not report.get("job_count"):
         logger.warning("批量分析输入为空（既无标题也无 JD 的职位会被过滤）")

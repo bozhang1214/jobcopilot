@@ -1,6 +1,6 @@
 {
   "name": "presales",
-  "description": "售前 / 解决方案架构岗（对应 presales pack），10 条。含缺薪资、极短 JD、纯英文等结构变异。",
+  "description": "售前 / 解决方案架构岗（对应 presales pack），10 条。含缺薪资、极短 JD、纯英文等结构变异。 每条职位带 `expected_role`：该标题**应当**被 classify_role 归到哪个方向桶，由 tests/test_stats.py 断言。规则表被刻意冻结（改它等于改报告口径），把期望值钉在数据里，调整规则时就有据可依；放在数据集里是为了贴近数据，且 build_job_summaries 只取 title/company/salary/jd_text，不会泄进提示词。",
   "pack": "presales",
   "keyword": "售前",
   "city": "上海",
@@ -13,7 +13,8 @@
       "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-01",
-      "jd_text": "负责大模型与 Agent 方案的售前技术支撑：客户需求拆解、方案设计、POC 落地与投标答辩；要求具备后端或算法背景，能把技术能力翻译成客户价值，独立完成方案文档与演示。"
+      "jd_text": "负责大模型与 Agent 方案的售前技术支撑：客户需求拆解、方案设计、POC 落地与投标答辩；要求具备后端或算法背景，能把技术能力翻译成客户价值，独立完成方案文档与演示。",
+      "expected_role": "架构师/Leader"
     },
     {
       "job_id": "pre-02",
@@ -23,7 +24,8 @@
       "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-02",
-      "jd_text": "面向银行与保险客户，负责风控、客服、投研场景的方案设计；要求熟悉金融合规约束，有从售前到交付的完整项目经验。"
+      "jd_text": "面向银行与保险客户，负责风控、客服、投研场景的方案设计；要求熟悉金融合规约束，有从售前到交付的完整项目经验。",
+      "expected_role": "其他"
     },
     {
       "job_id": "pre-03",
@@ -33,7 +35,8 @@
       "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-03",
-      "jd_text": "负责数据平台产品的售前支持：需求调研、方案编写、竞品对比与报价配合；要求熟悉数仓与数据治理，能独立完成客户技术交流。"
+      "jd_text": "负责数据平台产品的售前支持：需求调研、方案编写、竞品对比与报价配合；要求熟悉数仓与数据治理，能独立完成客户技术交流。",
+      "expected_role": "其他"
     },
     {
       "job_id": "pre-04",
@@ -43,7 +46,8 @@
       "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-04",
-      "jd_text": "为客户设计大模型与 RAG 落地路径：场景筛选、效果预期管理、成本测算与验收标准；要求有 LLM 应用实施经验，能写清「什么能做、什么做不到」。"
+      "jd_text": "为客户设计大模型与 RAG 落地路径：场景筛选、效果预期管理、成本测算与验收标准；要求有 LLM 应用实施经验，能写清「什么能做、什么做不到」。",
+      "expected_role": "算法/模型"
     },
     {
       "job_id": "pre-05",
@@ -53,7 +57,8 @@
       "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-05",
-      "jd_text": "负责 AI 评测平台（Evaluation）的售前支持：评测集设计、指标口径对齐、试点验收；要求理解评测与业务指标的关系。"
+      "jd_text": "负责 AI 评测平台（Evaluation）的售前支持：评测集设计、指标口径对齐、试点验收；要求理解评测与业务指标的关系。",
+      "expected_role": "评测/质量"
     },
     {
       "job_id": "pre-06",
@@ -63,7 +68,8 @@
       "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-06",
-      "jd_text": "负责 AI 安全产品的售前方案：提示注入防护、数据合规、审计与加固；要求能把监管要求翻译成技术方案。"
+      "jd_text": "负责 AI 安全产品的售前方案：提示注入防护、数据合规、审计与加固；要求能把监管要求翻译成技术方案。",
+      "expected_role": "安全"
     },
     {
       "job_id": "pre-07",
@@ -73,7 +79,8 @@
       "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-07",
-      "jd_text": "负责容器与中间件产品的售前技术方案；要求熟悉 Kubernetes、可观测性与迁移方案，能支撑招投标技术标。"
+      "jd_text": "负责容器与中间件产品的售前技术方案；要求熟悉 Kubernetes、可观测性与迁移方案，能支撑招投标技术标。",
+      "expected_role": "其他"
     },
     {
       "job_id": "pre-08",
@@ -83,7 +90,8 @@
       "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-08",
-      "jd_text": "负责知识管理方案的售前：梳理客户文档资产、设计权限与检索方案、推动试点；要求具备信息架构能力与较强的文档表达。"
+      "jd_text": "负责知识管理方案的售前：梳理客户文档资产、设计权限与检索方案、推动试点；要求具备信息架构能力与较强的文档表达。",
+      "expected_role": "其他"
     },
     {
       "job_id": "pre-09",
@@ -93,7 +101,8 @@
       "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-09",
-      "jd_text": "负责 AI 项目的方案与交付衔接：技术选型、里程碑设计、风险评估；要求能在客户现场独立推进，有招投标经验优先。"
+      "jd_text": "负责 AI 项目的方案与交付衔接：技术选型、里程碑设计、风险评估；要求能在客户现场独立推进，有招投标经验优先。",
+      "expected_role": "研发/工程"
     },
     {
       "job_id": "pre-10",
@@ -103,7 +112,8 @@
       "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-10",
-      "jd_text": "面向政企客户提供信创与 AI 融合方案；要求熟悉国产化软硬件栈与等保要求，能独立完成方案与汇报材料。"
+      "jd_text": "面向政企客户提供信创与 AI 融合方案；要求熟悉国产化软硬件栈与等保要求，能独立完成方案与汇报材料。",
+      "expected_role": "架构师/Leader"
     },
     {
       "job_id": "pre-11",
@@ -113,7 +123,8 @@
       "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-11",
-      "jd_text": "协助售前完成资料整理与演示环境搭建；要求沟通表达好、学习能力强，接受短期出差。"
+      "jd_text": "协助售前完成资料整理与演示环境搭建；要求沟通表达好、学习能力强，接受短期出差。",
+      "expected_role": "其他"
     },
     {
       "job_id": "pre-12",
@@ -123,7 +134,8 @@
       "city": "上海",
       "source": "手动上传",
       "job_url": "https://example.com/pre-12",
-      "jd_text": "Own the technical win in enterprise deals. Deliver solution design, POC, security review responses, and architecture workshops. Requirements: strong backend or data background, excellent storytelling in English and Chinese, experience with LLM or data platforms. Travel up to 30%."
+      "jd_text": "Own the technical win in enterprise deals. Deliver solution design, POC, security review responses, and architecture workshops. Requirements: strong backend or data background, excellent storytelling in English and Chinese, experience with LLM or data platforms. Travel up to 30%.",
+      "expected_role": "其他"
     }
   ]
 }

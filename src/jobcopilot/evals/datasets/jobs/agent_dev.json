@@ -1,6 +1,6 @@
 {
   "name": "agent_dev",
-  "description": "Agent / RAG / LLM 应用研发岗（对应 engineering pack），20 条。内容为脱敏改写的合成样本（非真实抓取），刻意包含结构变异：缺公司/缺薪资、纯英文、超长 JD。",
+  "description": "Agent / RAG / LLM 应用研发岗（对应 engineering pack），20 条。内容为脱敏改写的合成样本（非真实抓取），刻意包含结构变异：缺公司/缺薪资、纯英文、超长 JD。 每条职位带 `expected_role`：该标题**应当**被 classify_role 归到哪个方向桶，由 tests/test_stats.py 断言。规则表被刻意冻结（改它等于改报告口径），把期望值钉在数据里，调整规则时就有据可依；放在数据集里是为了贴近数据，且 build_job_summaries 只取 title/company/salary/jd_text，不会泄进提示词。",
   "pack": "engineering",
   "keyword": "Agent",
   "city": "北京",
@@ -13,7 +13,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-01",
-      "jd_text": "负责 Agent 编排框架、工具调用协议与评测体系的设计与落地；要求 3 年以上后端经验，熟悉 Python / LangGraph / RAG，有 LLM 应用落地经验者优先；有 MCP、多 Agent 协作、GraphRAG 实践经验加分。"
+      "jd_text": "负责 Agent 编排框架、工具调用协议与评测体系的设计与落地；要求 3 年以上后端经验，熟悉 Python / LangGraph / RAG，有 LLM 应用落地经验者优先；有 MCP、多 Agent 协作、GraphRAG 实践经验加分。",
+      "expected_role": "研发/工程"
     },
     {
       "job_id": "eng-02",
@@ -23,7 +24,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-02",
-      "jd_text": "负责企业知识库问答的检索增强链路：文档解析、切分策略、混合检索与重排；要求熟悉向量数据库与 Embedding 模型选型，能定位「召回了但答不对」的归因。"
+      "jd_text": "负责企业知识库问答的检索增强链路：文档解析、切分策略、混合检索与重排；要求熟悉向量数据库与 Embedding 模型选型，能定位「召回了但答不对」的归因。",
+      "expected_role": "算法/模型"
     },
     {
       "job_id": "eng-03",
@@ -33,7 +35,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-03",
-      "jd_text": "负责大模型推理服务性能优化：KV Cache 复用、连续批处理、量化与投机解码；要求熟悉 vLLM / TensorRT-LLM 中至少一种，有千卡集群调优经验优先。"
+      "jd_text": "负责大模型推理服务性能优化：KV Cache 复用、连续批处理、量化与投机解码；要求熟悉 vLLM / TensorRT-LLM 中至少一种，有千卡集群调优经验优先。",
+      "expected_role": "算法/模型"
     },
     {
       "job_id": "eng-04",
@@ -43,7 +46,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-04",
-      "jd_text": "搭建 Agent 能力评测体系：任务集设计、自动评分、回归看板；要求有评测集构建经验，能用程序化断言与 LLM Judge 两条腿走路，避免「分数好看但线上不行」。"
+      "jd_text": "搭建 Agent 能力评测体系：任务集设计、自动评分、回归看板；要求有评测集构建经验，能用程序化断言与 LLM Judge 两条腿走路，避免「分数好看但线上不行」。",
+      "expected_role": "评测/质量"
     },
     {
       "job_id": "eng-05",
@@ -53,7 +57,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-05",
-      "jd_text": "负责图文理解与文档结构还原：OCR 后处理、版面分析、表格与公式抽取；要求熟悉视觉编码器与多模态对齐训练，有文档场景落地经验优先。"
+      "jd_text": "负责图文理解与文档结构还原：OCR 后处理、版面分析、表格与公式抽取；要求熟悉视觉编码器与多模态对齐训练，有文档场景落地经验优先。",
+      "expected_role": "算法/模型"
     },
     {
       "job_id": "eng-06",
@@ -63,7 +68,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-06",
-      "jd_text": "负责模型训练与推理平台建设：任务调度、GPU 资源隔离、镜像与依赖治理；要求熟悉 Kubernetes 与容器化，能解决多团队争抢卡的问题。"
+      "jd_text": "负责模型训练与推理平台建设：任务调度、GPU 资源隔离、镜像与依赖治理；要求熟悉 Kubernetes 与容器化，能解决多团队争抢卡的问题。",
+      "expected_role": "研发/工程"
     },
     {
       "job_id": "eng-07",
@@ -73,7 +79,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-07",
-      "jd_text": "负责知识库服务的 API 与存储层：权限模型、增量索引、同步与一致性；要求熟悉 PostgreSQL 与 Elasticsearch，有大规模文档同步经验优先。"
+      "jd_text": "负责知识库服务的 API 与存储层：权限模型、增量索引、同步与一致性；要求熟悉 PostgreSQL 与 Elasticsearch，有大规模文档同步经验优先。",
+      "expected_role": "研发/工程"
     },
     {
       "job_id": "eng-08",
@@ -83,7 +90,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-08",
-      "jd_text": "负责对话式客服的意图识别与流程编排；要求熟悉意图分类、槽位填充与多轮状态管理，能在合规约束下做兜底与转人工策略。"
+      "jd_text": "负责对话式客服的意图识别与流程编排；要求熟悉意图分类、槽位填充与多轮状态管理，能在合规约束下做兜底与转人工策略。",
+      "expected_role": "其他"
     },
     {
       "job_id": "eng-09",
@@ -93,7 +101,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-09",
-      "jd_text": "负责统一模型网关：多厂商适配、配额与限流、密钥托管、调用审计；要求熟悉 OpenAI 兼容协议与可观测性建设，有成本治理经验优先。"
+      "jd_text": "负责统一模型网关：多厂商适配、配额与限流、密钥托管、调用审计；要求熟悉 OpenAI 兼容协议与可观测性建设，有成本治理经验优先。",
+      "expected_role": "算法/模型"
     },
     {
       "job_id": "eng-10",
@@ -103,7 +112,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-10",
-      "jd_text": "负责大模型应用的安全评估：提示注入、越权工具调用、数据外泄路径；要求能编写自动化攻击用例并给出可落地的缓解方案。"
+      "jd_text": "负责大模型应用的安全评估：提示注入、越权工具调用、数据外泄路径；要求能编写自动化攻击用例并给出可落地的缓解方案。",
+      "expected_role": "安全"
     },
     {
       "job_id": "eng-11",
@@ -113,7 +123,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-11",
-      "jd_text": "负责代码补全与仓库级问答的工程化：上下文裁剪、检索式补全、离线评测；要求熟悉 AST 与代码检索，有 IDE 插件链路经验优先。"
+      "jd_text": "负责代码补全与仓库级问答的工程化：上下文裁剪、检索式补全、离线评测；要求熟悉 AST 与代码检索，有 IDE 插件链路经验优先。",
+      "expected_role": "算法/模型"
     },
     {
       "job_id": "eng-12",
@@ -123,7 +134,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-12",
-      "jd_text": "负责语音交互链路：ASR 纠错、端到端语音对话、打断与轮次管理；要求熟悉流式推理与音频前端处理，有低延迟优化经验优先。"
+      "jd_text": "负责语音交互链路：ASR 纠错、端到端语音对话、打断与轮次管理；要求熟悉流式推理与音频前端处理，有低延迟优化经验优先。",
+      "expected_role": "算法/模型"
     },
     {
       "job_id": "eng-13",
@@ -133,7 +145,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-13",
-      "jd_text": "负责 NL2SQL 与数据分析智能体：Schema 理解、SQL 校验与自修复；要求熟悉数仓建模与查询优化，能处理口径歧义。"
+      "jd_text": "负责 NL2SQL 与数据分析智能体：Schema 理解、SQL 校验与自修复；要求熟悉数仓建模与查询优化，能处理口径歧义。",
+      "expected_role": "其他"
     },
     {
       "job_id": "eng-14",
@@ -143,7 +156,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-14",
-      "jd_text": "负责手机端模型部署：算子适配、量化压缩、内存与功耗约束下的时延优化；要求熟悉 NCNN / MNN / TFLite 之一，有 NPU 适配经验优先。"
+      "jd_text": "负责手机端模型部署：算子适配、量化压缩、内存与功耗约束下的时延优化；要求熟悉 NCNN / MNN / TFLite 之一，有 NPU 适配经验优先。",
+      "expected_role": "其他"
     },
     {
       "job_id": "eng-15",
@@ -153,7 +167,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-15",
-      "jd_text": "为客户落地 AI 平台：需求拆解、POC 验证、方案文档与交付支持；要求兼具工程能力与沟通能力，能独立完成技术方案答辩。"
+      "jd_text": "为客户落地 AI 平台：需求拆解、POC 验证、方案文档与交付支持；要求兼具工程能力与沟通能力，能独立完成技术方案答辩。",
+      "expected_role": "其他"
     },
     {
       "job_id": "eng-16",
@@ -163,7 +178,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-16",
-      "jd_text": "负责 Agent 平台的架构设计与技术选型：编排引擎、状态管理、可观测性与容量规划；要求有平台级架构经验，能主导跨团队方案评审。"
+      "jd_text": "负责 Agent 平台的架构设计与技术选型：编排引擎、状态管理、可观测性与容量规划；要求有平台级架构经验，能主导跨团队方案评审。",
+      "expected_role": "架构师/Leader"
     },
     {
       "job_id": "eng-17",
@@ -173,7 +189,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-17",
-      "jd_text": "负责 AI 项目的进度与风险管控：里程碑拆解、跨团队协同、交付质量把关；要求具备基础技术理解力与较强推动力。"
+      "jd_text": "负责 AI 项目的进度与风险管控：里程碑拆解、跨团队协同、交付质量把关；要求具备基础技术理解力与较强推动力。",
+      "expected_role": "其他"
     },
     {
       "job_id": "eng-18",
@@ -183,7 +200,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-18",
-      "jd_text": "负责大规模向量检索：索引结构选型、量化与召回率优化、混合排序融合；要求熟悉 HNSW / IVF 原理与线上调参。"
+      "jd_text": "负责大规模向量检索：索引结构选型、量化与召回率优化、混合排序融合；要求熟悉 HNSW / IVF 原理与线上调参。",
+      "expected_role": "算法/模型"
     },
     {
       "job_id": "eng-19",
@@ -193,7 +211,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-19",
-      "jd_text": "负责领域模型微调：数据清洗与配比、SFT / DPO 训练、效果评估与上线；要求熟悉主流训练框架与显存优化手段。"
+      "jd_text": "负责领域模型微调：数据清洗与配比、SFT / DPO 训练、效果评估与上线；要求熟悉主流训练框架与显存优化手段。",
+      "expected_role": "算法/模型"
     },
     {
       "job_id": "eng-20",
@@ -203,7 +222,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-20",
-      "jd_text": "负责 LLM 应用的接口层与任务队列；要求熟悉 Python FastAPI 与异步编程，能独立完成从需求到上线。"
+      "jd_text": "负责 LLM 应用的接口层与任务队列；要求熟悉 Python FastAPI 与异步编程，能独立完成从需求到上线。",
+      "expected_role": "研发/工程"
     },
     {
       "job_id": "eng-21",
@@ -213,7 +233,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-21",
-      "jd_text": "Build and operate an internal LLM platform. Responsibilities: agent orchestration, tool calling protocol, prompt versioning, and evaluation pipelines. Requirements: 3+ years backend with Python, hands-on with RAG and vector databases, experience shipping LLM features to production. Bonus: MCP, multi-agent coordination, inference optimization."
+      "jd_text": "Build and operate an internal LLM platform. Responsibilities: agent orchestration, tool calling protocol, prompt versioning, and evaluation pipelines. Requirements: 3+ years backend with Python, hands-on with RAG and vector databases, experience shipping LLM features to production. Bonus: MCP, multi-agent coordination, inference optimization.",
+      "expected_role": "算法/模型"
     },
     {
       "job_id": "eng-22",
@@ -223,7 +244,8 @@
       "city": "北京",
       "source": "手动上传",
       "job_url": "https://example.com/eng-22",
-      "jd_text": "岗位职责：1) 负责集团统一大模型平台的架构设计与演进路线；2) 定义模型接入、编排、评测、发布的标准流程；3) 主导 Agent 框架与工具生态建设，制定工具调用协议与权限模型；4) 设计多租户下的配额、限流与成本核算体系；5) 建设提示词版本管理与灰度发布能力，支持线上热更新与回滚；6) 搭建离线评测与在线反馈闭环，量化质量与成本；7) 推动检索增强方案标准化，覆盖文档解析、切分、索引、重排全链路；8) 负责推理服务的容量规划与性能治理，控制单位调用成本；9) 建立模型与数据的安全合规基线，覆盖数据出域与审计；10) 牵头跨团队技术攻关与方案评审。任职要求：1) 8 年以上研发经验，3 年以上平台或中台架构经验；2) 精通 Python，熟悉至少一种主流 Agent 框架；3) 有大规模推理服务或检索系统的生产经验；4) 熟悉 Kubernetes 与云原生基础设施；5) 具备成本与稳定性意识，能用数据驱动技术决策；6) 有跨团队协作与技术影响力，能推动标准落地。"
+      "jd_text": "岗位职责：1) 负责集团统一大模型平台的架构设计与演进路线；2) 定义模型接入、编排、评测、发布的标准流程；3) 主导 Agent 框架与工具生态建设，制定工具调用协议与权限模型；4) 设计多租户下的配额、限流与成本核算体系；5) 建设提示词版本管理与灰度发布能力，支持线上热更新与回滚；6) 搭建离线评测与在线反馈闭环，量化质量与成本；7) 推动检索增强方案标准化，覆盖文档解析、切分、索引、重排全链路；8) 负责推理服务的容量规划与性能治理，控制单位调用成本；9) 建立模型与数据的安全合规基线，覆盖数据出域与审计；10) 牵头跨团队技术攻关与方案评审。任职要求：1) 8 年以上研发经验，3 年以上平台或中台架构经验；2) 精通 Python，熟悉至少一种主流 Agent 框架；3) 有大规模推理服务或检索系统的生产经验；4) 熟悉 Kubernetes 与云原生基础设施；5) 具备成本与稳定性意识，能用数据驱动技术决策；6) 有跨团队协作与技术影响力，能推动标准落地。",
+      "expected_role": "架构师/Leader"
     }
   ]
 }

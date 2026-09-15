@@ -13,17 +13,35 @@ from typing import Any
 
 from jobcopilot.core.models import HotKeyword, JobStats
 
-# 职位方向分类关键词（按优先级，首个命中即归类）
-ROLE_RULES: list[tuple[str, list[str]]] = [
-    ("评测/质量", ["评测", "评估", "Evaluation", "测试"]),
+# 职位方向归类：**两级判定**，职能名词优先于领域词。
+#
+# 为什么改成两级（2026-09-15）：原实现是「一张表、首个命中即归类」，而「算法/模型」
+# 排在「产品经理」之前，于是**领域词抢走了职能判定**，出现三处明显反直觉的结果：
+#
+#   - 「大模型产品经理」→ 算法/模型（「大模型」先命中，产品岗被算成算法岗）
+#   - 「大模型平台架构师」→ 算法/模型（同理，架构岗被算成算法岗）
+#   - 「技术售前顾问（数据平台）」→ 运营/策略（被「数据」这个极宽的词带走）
+#
+# 现在：先看**这个人干什么**（职能名词），再看**什么方向**（领域/工程词）。
+# 注意：**桶名集合没有变**（仍是这 7 个 + 「其他」），变的是归类结果 ——
+# 报告里 role_distribution 的**数字会变**，属用户可见的口径变化。
+ROLE_NOUN_RULES: list[tuple[str, list[str]]] = [
+    ("产品经理", ["产品经理", "产品", "PM"]),
+    ("架构师/Leader", ["架构师", "技术负责人", "Tech Lead", "Leader", "架构研发"]),
     ("安全", ["安全"]),
-    ("算法/模型", ["算法", "NLP", "大模型", "LLM", "模型", "AIOps"]),
-    ("架构师/Leader", ["架构师", "Tech Lead", "技术负责人", "Leader", "架构研发"]),
-    ("产品经理", ["产品经理", "产品", "PM", "策略"]),
-    ("运营/策略", ["运营", "数据策略", "数据"]),
+    ("评测/质量", ["评测", "评估", "Evaluation", "测试"]),
+    ("运营/策略", ["运营"]),
+]
+
+# 标题里没有职能名词时，按技术方向归类。
+DOMAIN_RULES: list[tuple[str, list[str]]] = [
+    ("算法/模型", ["算法", "NLP", "大模型", "LLM", "模型", "AIOps", "多模态"]),
     (
         "研发/工程",
-        ["后端", "引擎", "研发工程师", "开发工程师", "Harness", "Infra", "基础设施", "编排", "Orchestration", "应用"],
+        [
+            "后端", "前端", "引擎", "研发工程师", "开发工程师",
+            "Harness", "Infra", "基础设施", "编排", "Orchestration", "应用",
+        ],
     ),
 ]
 
@@ -38,11 +56,24 @@ ROLE_OTHER = "其他"
 
 
 def classify_role(title: str) -> str:
-    """按 ``ROLE_RULES`` 把职位标题归类；未命中返回 ``"其他"``。"""
+    """按「职能名词 → 领域词」两级把职位标题归类；都未命中返回 ``"其他"``。
+
+    为什么职能优先：职位名词（产品经理 / 架构师 / 运营 / 评测 / 安全）比领域词
+    （大模型 / 算法 / Infra）更能说明「这个人是干什么的」。原实现按单表顺序命中，
+    导致「大模型产品经理」被算成算法岗一类的错分。
+
+    Args:
+        title: 职位标题（大小写不敏感；``None``/空串返回 ``"其他"``）。
+
+    Returns:
+        7 个方向桶之一，或 ``ROLE_OTHER``。**桶名集合未变**（改的是归类口径，
+        会让报告里的 ``role_distribution`` 数字变化）。
+    """
     t = (title or "").lower()
-    for role, keywords in ROLE_RULES:
-        if any(k.lower() in t for k in keywords):
-            return role
+    for rules in (ROLE_NOUN_RULES, DOMAIN_RULES):
+        for role, keywords in rules:
+            if any(k.lower() in t for k in keywords):
+                return role
     return ROLE_OTHER
 
 

@@ -21,6 +21,7 @@ from jobcopilot.core.json_utils import parse_json
 from jobcopilot.core.logging import get_logger
 from jobcopilot.core.messages import LLMPort, extract_text, system, user
 from jobcopilot.core.models import BatchReport, JobPosting, normalize_job
+from jobcopilot.core.prompts.budget import per_part_budget, with_budget
 from jobcopilot.core.prompts.compose import digest as prompt_digest
 from jobcopilot.core.prompts.resolver import PromptResolver
 from jobcopilot.core.stats import compute_stats
@@ -95,6 +96,7 @@ async def analyze_jobs_batch(
     prompt_dir: str | None = None,
     pack: str | None = None,
     resolver: PromptResolver | None = None,
+    max_chars: int | None = None,
 ) -> BatchReport:
     """对一批职位做批量分析，返回报告字典（**不落盘**）。
 
@@ -121,6 +123,14 @@ async def analyze_jobs_batch(
 
     market_prompt = res.get(PROMPT_MARKET)
     knowledge_prompt = res.get(PROMPT_KNOWLEDGE)
+    # 长度预算：两路（市场行情 + 知识迭代）均摊。职责是**让模型写短**，
+    # 而不是我们事后裁剪 —— 按字节裁剪会产出非法 JSON。见 core/prompts/budget.py。
+    if max_chars:
+        part_budget = per_part_budget(max_chars, 2, floor=300)
+        market_prompt = with_budget(market_prompt, part_budget) if market_prompt else market_prompt
+        knowledge_prompt = (
+            with_budget(knowledge_prompt, part_budget) if knowledge_prompt else knowledge_prompt
+        )
     if not market_prompt:
         logger.warning(f"批量分析提示词缺失，跳过 source={res.source_of(PROMPT_MARKET)}")
     if not knowledge_prompt:

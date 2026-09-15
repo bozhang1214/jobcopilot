@@ -20,6 +20,7 @@ from typing import Any
 from jobcopilot.core.json_utils import parse_json
 from jobcopilot.core.logging import get_logger
 from jobcopilot.core.messages import LLMPort, extract_text, system, user
+from jobcopilot.core.prompts.budget import per_part_budget, with_budget
 from jobcopilot.core.prompts.resolver import PromptResolver
 
 logger = get_logger(__name__)
@@ -49,6 +50,7 @@ class SingleJobAnalyzer:
         prompt_dir: 宿主本地提示词目录（优先级高于包内 ``base/``）。
         pack: 职能族名（对应包内 ``packs/<pack>/``）。
         resolver: 直接注入的解析器（给了就忽略 ``prompt_dir`` / ``pack``）。
+        max_chars: 全报告字符预算（按 7 段均摊给模型，**不做事后裁剪**）。
     """
 
     def __init__(
@@ -57,9 +59,15 @@ class SingleJobAnalyzer:
         prompt_dir: str | None = None,
         pack: str | None = None,
         resolver: PromptResolver | None = None,
+        max_chars: int | None = None,
     ) -> None:
         self._llm = llm
         self._resolver = resolver or PromptResolver(local_dir=prompt_dir, pack=pack)
+        # 总字符预算按段数均摊（单职位固定 7 段）。职责是「让模型写短」，
+        # 不做任何事后裁剪——见 core/prompts/budget.py 里的原因。
+        self._step_budget = (
+            per_part_budget(max_chars, len(STEP_PROMPT_FILES)) if max_chars else None
+        )
         self._prompts: dict[str, str] = {}
         for step, filename in STEP_PROMPT_FILES.items():
             text = self._resolver.get(filename)
@@ -225,7 +233,7 @@ class SingleJobAnalyzer:
             return {}
         for key, value in replacements.items():
             prompt = prompt.replace("{{" + key + "}}", value)
-        messages = [system(prompt), user(_SKIP_NOTICE)]
+        messages = [system(with_budget(prompt, self._step_budget)), user(_SKIP_NOTICE)]
         try:
             resp = await self._llm.complete(role, messages)
             return parse_json(extract_text(resp), tag="职位分析")
