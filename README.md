@@ -237,6 +237,42 @@ JOBCOPILOT_LLM_MODEL=                 # 覆盖模型名
 JOBCOPILOT_PROMPTS_DIR=~/.jobcopilot/prompts
 ```
 
+### HTTP 形态（云端平台 / 多人共用）
+
+云端平台跑在**别人的机器**上，所以 HTTP 形态支持**按请求传 Key**——每个调用方用
+自己的 Key，服务端不保存、不承担费用，一台服务可以服务多个人。
+
+| 请求头 | 作用 |
+|---|---|
+| `X-JobCopilot-Api-Key` | **本次请求**的 LLM Key（BYOK）。不传则用服务端的 `JOBCOPILOT_LLM_API_KEY` |
+| `X-JobCopilot-Provider` | 可选，覆盖 LLM 预设（`deepseek`/`qwen`/…） |
+| `X-JobCopilot-Model` | 可选，覆盖模型名 |
+| `Authorization: Bearer <token>` | 仅当服务端设了 `JOBCOPILOT_HTTP_TOKEN` 时需要 |
+
+服务端启动：
+
+```bash
+export JOBCOPILOT_HTTP_TOKEN=$(openssl rand -hex 24)          # 访问令牌
+export JOBCOPILOT_HTTP_ALLOWED_HOSTS=jobcopilot.example.com   # 公网域名（必填）
+jobcopilot-mcp --http --host 0.0.0.0 --port 8765
+# 对端配置：https://jobcopilot.example.com/mcp
+```
+
+> ⚠️ **两个容易踩的坑（都由程序在启动时拦住，不会让你上线后才发现）**
+>
+> 1. **非回环绑定必须带访问令牌**：无鉴权的 HTTP 端点等于把服务器上的 LLM Key
+>    开放给任何人。确实在可信内网时，可用 `--allow-public-bind` 显式放弃该保护。
+> 2. **必须配 `JOBCOPILOT_HTTP_ALLOWED_HOSTS`**：MCP SDK 的 DNS-rebinding 保护
+>    默认**只放行回环地址**，云端平台会收到 `421 Invalid Host header`；而它的匹配
+>    规则只支持精确匹配或 `host:*`（**没有** `*.example.com`），所以裸域名会被自动
+>    补一份 `host:*`（否则 HTTPS 默认端口下对端常带的 `host:443` 对不上）。
+>
+> 生产环境请在前面放反向代理（nginx）终结 TLS——MCP 客户端普遍要求 `https://`。
+
+**数据流向**：HTTP 形态下 JD 正文会经过「平台 → 你的服务器」，隐私等级**低于**
+stdio 本地模式（本地模式下 JD 不离开本机）。各拓扑的差异见
+[`docs/integrations/PRIVACY.md`](docs/integrations/PRIVACY.md)。
+
 ---
 
 ## 评估（Eval）
