@@ -452,13 +452,18 @@ def build_http_app(server: Any, config: ServerConfig, token: str = "") -> Any:
     base = config.http_base_path
     streamable_path = f"{base}{STREAMABLE_PATH}"
     sse_path = f"{base}{SSE_MOUNT_PATH}"
-    # 让 SDK 用带前缀的路径注册路由（streamable 的单端点 + SSE 的流端点）
+    # ⚠️ 前缀必须**同时**改路由与声明，只改一处会让 SSE 客户端 404：
+    #    SDK 的 `sse_app(mount_path=...)` 只改「对外声明的消息端点」路径，
+    #    **不移动实际注册的路由**（路由取的是 settings.message_path）。
+    #    实测踩到过：声明写 /jobcopilot/sse/messages/、实际路由却是 /messages，
+    #    客户端照着声明 POST → 404。所以这里直接设置两个 settings。
     server.settings.streamable_http_path = streamable_path
     server.settings.sse_path = sse_path
+    server.settings.message_path = f"{sse_path}/messages/"
 
     http_app = server.streamable_http_app()
-    # mount_path 决定 SSE 把「消息端点」写成什么路径：base/sse + /messages/
-    sse_app = server.sse_app(mount_path=sse_path)
+    # mount_path 用 "/"：消息端点已由 message_path 带上前缀，不必再靠 mount_path 拼
+    sse_app = server.sse_app(mount_path="/")
 
     @asynccontextmanager
     async def lifespan(app: Any) -> AsyncIterator[None]:

@@ -309,6 +309,12 @@ class HttpServer:
         self.server.settings.port = self.cfg.port
         apply_transport_security(self.server, self.cfg)
         app = build_http_app(self.server, self.cfg, token or "")
+        self.app = app
+        # 带令牌时应用被 BearerAuthMiddleware 包了一层，路由表在内层。
+        # 测试要断言「实际注册的路由」（踩过「声明带前缀、路由没带」的坑），
+        # 因此这里记下内层路由；生产代码无需为测试暴露内部结构。
+        _inner = getattr(app, "app", app)
+        self.route_paths = [getattr(r, "path", "") for r in getattr(_inner, "routes", [])]
         uv = uvicorn.Config(app, host="127.0.0.1", port=self.port, log_level="error")
         self._uv = uvicorn.Server(uv)
         self._thread = threading.Thread(target=self._uv.run, daemon=True)
@@ -623,27 +629,45 @@ def test_base_path_streamable_endpoint() -> None:
         assert r2.status_code == 404
 
 
-def test_base_path_sse_message_endpoint_keeps_prefix() -> None:
-    """**这个特性存在的理由**：SSE 把消息端点作为绝对路径告诉客户端，
-    必须带上路径前缀，否则客户端会去请求 ``/sse/messages/``（丢掉 ``/jobcopilot``）
-    而失败。百度千帆只支持 SSE，所以这条不能错。
+def test_base_path_sse_routes_are_actually_registered() -> None:
+    """前缀必须**同时**体现在「实际路由」与「对外声明的端点」上。
+
+    这里断言**真实路由**——因为踩过一个坑：SDK 的 ``sse_app(mount_path=...)``
+    只改对外声明的消息端点路径、**不移动实际路由**，于是出现
+    「声明写 /jobcopilot/sse/messages/、实际路由却是 /messages」，
+    客户端照着声明 POST 直接 404。原测试只断言了声明字符串，因此漏掉了这个 bug。
     """
     with HttpServer(StartupLLM(), token=TOKEN, base_path="/jobcopilot") as srv:
-        timeout = httpx.Timeout(5.0, read=5.0)
-        with httpx.stream(
-            "GET",
-            srv.sse_url,
-            headers={
-                "authorization": f"Bearer {TOKEN}",
-                "accept": "text/event-stream",
-            },
-            timeout=timeout,
-        ) as r:
-            assert r.status_code == 200
-            buf = ""
-            for line in r.iter_lines():
-                buf += line + "\n"
-                if "/jobcopilot/sse/messages" in buf:
-                    break
-            assert "event: endpoint" in buf
-            assert "/jobcopilot/sse/messages" in buf
+        paths = srv.route_paths
+        assert "/jobcopilot/mcp" in paths
+        assert "/jobcopilot/sse" in paths
+        # Starlette 会把路由末尾斜杠规范化掉，所以这里比对不带尾斜杠的形式
+        assert "/jobcopilot/sse/messages" in paths, f"消息端点路由缺失，实际路由: {paths}"
+
+
+def test_base_path_sse_full_session_works() -> None:
+    """跑**完整** SSE 会话（initialize + list_tools），而不只是看 endpoint 事件。
+
+    为什么要跑到这一步：消息端点的路径对不对，只有真的 POST 一次才知道。
+    用 ``wait_for`` 给硬超时——sse_client 的清理在测试里可能挂住（早先踩过，
+    整轮测试跑到 600s 被杀）。
+    """
+    from mcp.client.sse import sse_client
+
+    with HttpServer(StartupLLM(), token=TOKEN, base_path="/jobcopilot") as srv:
+
+        async def run() -> list[str]:
+            async with sse_client(
+                srv.sse_url,
+                headers={"Authorization": f"Bearer {TOKEN}"},
+                timeout=15,
+                sse_read_timeout=15,
+            ) as (r, w):
+                async with ClientSession(r, w) as s:
+                    await s.initialize()
+                    res = await s.list_tools()
+                    return [t.name for t in res.tools]
+
+        names = asyncio.run(asyncio.wait_for(run(), timeout=30))
+    assert len(names) == 6
+    assert "analyze_job" in names
