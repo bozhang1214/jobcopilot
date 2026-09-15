@@ -182,7 +182,9 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
         call_ctx = ctx.with_request(req)
         try:
             out: dict[str, Any] = await fn(call_ctx, **kwargs)
-            return out
+            # 出站体检：能序列化 + 体积没超自设上限；有问题**显式报错**并标明是我们这边
+            checked: dict[str, Any] = inspect_response(out, getattr(fn, "__name__", "tool"))
+            return checked
         except ToolError as e:
             logger.warning(f"工具参数问题: {e}")
             return {"error": str(e), "hint": "请修正参数后重试"}
@@ -261,6 +263,42 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
         )
 
     @mcp.tool()
+    async def self_check() -> dict[str, Any]:
+        """自检：返回一个**固定的小响应**（几百字节），用于界定故障边界。
+
+        用法：平台侧若「调用 analyze_* 拿不到结果」，先调这个工具。
+
+        Args:
+            无。
+
+        Returns:
+            ``{ok, kernel:{version, prompts, prompt_source, transport, base_path}, note}``。
+        """
+        import os
+
+        from jobcopilot import __version__
+        from jobcopilot.core.prompts import base_dir
+
+        bundled = sorted(p.name for p in base_dir().glob("*.md"))
+        return {
+            "ok": True,
+            "kernel": {
+                "version": __version__,
+                "commit": os.environ.get("JOBCOPILOT_COMMIT", "unknown")[:12],
+                "prompts": len(bundled),
+                "prompt_source": ctx.resolver(None).source_of("批量职位分析.md"),
+                "transport": cfg.transport,
+                "base_path": cfg.http_base_path or "",
+                "llm_configured": not getattr(ctx.llm, "is_placeholder", False),
+            },
+            "note": (
+                "这是固定的小响应（<1KB）。若平台能收到它、却收不到 analyze_* 的结果，"
+                "差异在**响应体积**（平台侧限制），不是内核逻辑；若这个也收不到，"
+                "问题在链路（地址/令牌/Host/网络）。"
+            ),
+        }
+
+    @mcp.tool()
     async def get_profile() -> dict[str, Any]:
         """读取已保存的求职者画像（空表示尚未设置）。"""
         try:
@@ -301,6 +339,48 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
             return {"error": str(e)}
 
     return mcp
+
+
+#: 出站响应体的硬上限（字节）。超过就**显式报错**，而不是把可疑的大体发出去。
+#:
+#: 为什么要有它：平台侧出现「响应为空/被截断」时，第一件要回答的事是
+#: **「我们到底发出去了什么」**。有了这条上限 + 下面的日志，边界就清楚了：
+#:   - 日志里根本没有这条记录 → 请求没到我们这儿（或工具没执行）；
+#:   - 日志里有「返回 N 字节、JSON 合法」 → 我们发出去的是完整合法的；
+#:   - 报「超出上限」错误 → **是我们的问题**，错误信息里带确切数字。
+MAX_RESPONSE_BYTES = 8 * 1024 * 1024
+
+
+def inspect_response(result: dict[str, Any], tool_name: str) -> dict[str, Any]:
+    """给出站结果做体检：能否序列化、多大；异常时**显式报错**。
+
+    Args:
+        result: 工具返回值（dict）。
+        tool_name: 工具名，用于日志与错误信息定位。
+
+    Returns:
+        原样返回 ``result``（体检不改内容）。
+
+    Raises:
+        ToolError: 结果无法序列化，或字节数超过 :data:`MAX_RESPONSE_BYTES`。
+            两种都明确标注是**内核侧（我们的问题）**，并给出数字与处置建议。
+    """
+    try:
+        payload = json.dumps(result, ensure_ascii=False)
+    except (TypeError, ValueError) as e:
+        raise ToolError(
+            f"内核侧错误：工具 {tool_name} 的返回值无法序列化为 JSON（{str(e)[:120]}）。"
+            "这是我们代码的问题，请连同该工具的入参一并反馈。"
+        ) from e
+    size = len(payload.encode("utf-8"))
+    logger.info(f"工具 {tool_name} 返回 {size} 字节（JSON 合法，可被解析）")
+    if size > MAX_RESPONSE_BYTES:
+        raise ToolError(
+            f"内核侧错误：工具 {tool_name} 的响应体 {size} 字节，超过内核自设上限 "
+            f"{MAX_RESPONSE_BYTES} 字节。这**不是平台限制，是我们的输出过大**——"
+            "请减少单次职位数量（或分批调用）后重试。"
+        )
+    return result
 
 
 def build_parser() -> argparse.ArgumentParser:

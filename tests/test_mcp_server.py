@@ -48,6 +48,8 @@ EXPECTED_TOOLS = {
     "save_profile",
     "list_prompt_packs",
     "sync_prompts",
+    # 自检：固定小响应，用于界定「响应为空」是链路问题还是体积问题
+    "self_check",
 }
 
 

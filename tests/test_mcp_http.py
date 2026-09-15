@@ -9,6 +9,7 @@ MCP SDK 内部的任务调度方式（``request_ctx`` contextvar 是否同任务
 from __future__ import annotations
 
 import asyncio
+import json
 import socket
 import threading
 import time
@@ -30,8 +31,9 @@ from jobcopilot.mcp.server import (  # noqa: E402
     apply_transport_security,
     build_http_app,
     build_server,
+    inspect_response,
 )
-from jobcopilot.mcp.tools import ToolContext  # noqa: E402
+from jobcopilot.mcp.tools import ToolContext, ToolError  # noqa: E402
 
 TOKEN = "tok-0123456789abcdef"
 
@@ -366,9 +368,8 @@ def test_http_serves_tools_with_token(monkeypatch: pytest.MonkeyPatch) -> None:
                     return [t.name for t in res.tools]
 
         names = asyncio.run(list_tools())
-        assert "analyze_job" in names
-        assert "analyze_jobs_batch" in names
-        assert len(names) == 6
+        # 刻意不写死数量：加工具（如 self_check）不应让这条假失败
+        assert {"analyze_job", "analyze_jobs_batch", "list_prompt_packs", "self_check"} <= set(names)
 
 
 def test_http_rejects_missing_token() -> None:
@@ -669,5 +670,54 @@ def test_base_path_sse_full_session_works() -> None:
                     return [t.name for t in res.tools]
 
         names = asyncio.run(asyncio.wait_for(run(), timeout=30))
-    assert len(names) == 6
-    assert "analyze_job" in names
+    assert {"analyze_job", "analyze_jobs_batch", "self_check"} <= set(names)
+
+
+# ============================================================
+# 七、出站响应体体检 + self_check（界定「问题在谁」）
+# ============================================================
+
+
+def test_inspect_response_passes_normal_payload() -> None:
+    """正常结果原样返回（体检不改内容）。"""
+    out = {"a": 1, "中文": "值"}
+    assert inspect_response(out, "t") is out
+
+
+def test_inspect_response_rejects_unserializable() -> None:
+    """无法序列化时**显式报错**，并标明是内核侧问题。"""
+    with pytest.raises(ToolError, match="内核侧错误"):
+        inspect_response({"bad": object()}, "t")  # type: ignore[dict-item]
+
+
+def test_inspect_response_rejects_oversized(monkeypatch: pytest.MonkeyPatch) -> None:
+    """超过内核自设上限时显式报错，且**明确说这不是平台限制**。
+
+    为什么要这么写错误信息：平台侧出现「响应为空」时，第一件要回答的是
+    「是不是我们的输出有问题」。错误信息里带上字节数与归属，才能界定边界。
+    """
+    monkeypatch.setattr("jobcopilot.mcp.server.MAX_RESPONSE_BYTES", 50)
+    with pytest.raises(ToolError, match="不是平台限制"):
+        inspect_response({"big": "x" * 200}, "t")
+
+
+def test_self_check_tool_is_registered() -> None:
+    """`self_check` 必须存在——它的小响应是「体积 vs 逻辑」的对照物。"""
+    srv = build_server(ServerConfig(transport="stdio"), llm=StartupLLM())
+
+    async def _names() -> list[str]:
+        return [t.name for t in (await srv.list_tools())]
+
+    names = asyncio.run(_names())
+    assert "self_check" in names
+
+
+def test_self_check_returns_small_fixed_payload() -> None:
+    """self_check 的响应必须很小且含定位信息（版本/提示词来源/传输/前缀）。"""
+    with HttpServer(StartupLLM(), token=TOKEN) as srv:
+        res = _mcp_call(srv.url, {"Authorization": f"Bearer {TOKEN}"}, "self_check", {})
+        payload = json.loads("".join(getattr(c, "text", "") for c in res.content))
+    assert payload["ok"] is True
+    assert set(payload["kernel"]) >= {"version", "prompts", "prompt_source", "transport"}
+    raw = json.dumps(payload, ensure_ascii=False)
+    assert len(raw) < 1024, f"self_check 响应应 <1KB，实际 {len(raw)}"
