@@ -67,12 +67,50 @@ class ToolContext:
     """工具执行上下文：LLM、提示词、画像路径、安全策略。
 
     Attributes:
-        llm: LLM 端口实现（由 server 按 BYOK 配置构造）。
+        llm: LLM 端口实现（由 server 按 BYOK 配置构造）。**HTTP 形态下这是
+            服务端默认 Key**；若调用方在请求头里带了自己的 Key，应当先经
+            :meth:`with_request` 派生本次请求的上下文。
         config: Server 配置（含 prompts_dir / 安全开关）。
+        request: 本次请求的原始 HTTP 请求（stdio 下为 ``None``）。
     """
 
     llm: LLMPort
     config: ServerConfig
+    request: Any = None
+
+    # ---------- 按请求解析 BYOK ----------
+
+    def llm_for(self, request: Any | None) -> LLMPort:
+        """按请求头解析 LLM：调用方带了自己的 Key 就用它，否则回落服务端配置。
+
+        Args:
+            request: Starlette ``Request``（HTTP 形态）；``None`` 时直接回落。
+
+        Returns:
+            本次请求应当使用的 LLM 客户端。
+        """
+        from jobcopilot.mcp.request_keys import credentials_from_request, resolve_llm
+
+        creds = credentials_from_request(request)
+        if creds is None:
+            return self.llm
+        logger.info(
+            f"使用调用方提供的 BYOK 凭据 provider={creds.provider or self.config.provider}"
+        )
+        return resolve_llm(creds, self.config)
+
+    def with_request(self, request: Any | None) -> "ToolContext":
+        """派生「本次请求」的上下文（``llm`` 已按 BYOK 解析好）。
+
+        这样 :mod:`jobcopilot.mcp.tools` 里的实现仍然只读 ``ctx.llm``，
+        不必知道 BYOK 的存在——保持纯实现可独立单测。
+
+        Args:
+            request: 原始 HTTP 请求；``None`` 时原样返回 ``self``。
+        """
+        if request is None:
+            return self
+        return ToolContext(llm=self.llm_for(request), config=self.config, request=request)
 
     # ---------- 提示词 ----------
 

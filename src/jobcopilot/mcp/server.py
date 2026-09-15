@@ -10,10 +10,25 @@
 
 > 云端平台跑在别人机器上，**必须 BYOK**：Key 通过 HTTP header / 环境变量传入，
 > 服务器不保存、不留存。``source_path`` 在 HTTP 形态下默认禁用（任意文件读取风险）。
+
+HTTP 形态的调用方带自己的 Key（BYOK）：::
+
+    X-JobCopilot-Api-Key: <你的 Key>
+    X-JobCopilot-Provider: deepseek     # 可选，覆盖预设
+    X-JobCopilot-Model: deepseek-chat   # 可选，覆盖模型
+    Authorization: Bearer <访问令牌>     # 仅当服务端设了 JOBCOPILOT_HTTP_TOKEN
+
+读取请求头依赖 lowlevel 的 ``request_ctx``：MCP 的 streamable HTTP 传输在处理每个
+消息时把 ``RequestContext(request=<Starlette Request>)`` set 进该 contextvar，而工具
+处理器在**同一个任务**里执行——因此能直接读到（已由 tests/test_mcp_http.py 端到端
+用例证实）。若哪天真读不到了，:func:`build_server` 里的 ``guard`` 会打 **error 日志**
+而不是安静地改用服务端的 Key。
 """
 from __future__ import annotations
 
 import argparse
+import json
+import secrets
 import sys
 from typing import Any
 
@@ -21,6 +36,7 @@ from jobcopilot import __version__
 from jobcopilot.core.logging import get_logger
 from jobcopilot.core.messages import LLMPort
 from jobcopilot.mcp.config import ServerConfig
+from jobcopilot.mcp.request_keys import current_request
 from jobcopilot.mcp.tools import (
     ToolContext,
     ToolError,
@@ -140,10 +156,24 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
 
     mcp = FastMCP(SERVER_NAME, instructions=INSTRUCTIONS)
 
-    async def guard(fn: Any, *args: Any, **kwargs: Any) -> dict[str, Any]:
-        """统一错误包装：可预期错误返回结构化提示，便于模型自我修正。"""
+    async def guard(fn: Any, **kwargs: Any) -> dict[str, Any]:
+        """统一错误包装 + 按请求解析 BYOK。
+
+        ``ctx`` 在启动时只建一次（持有服务端默认 Key）。这里按**本次请求**派生一份
+        上下文：调用方在请求头里带了自己的 Key 就用它，否则回落服务端配置。
+        这样 :mod:`jobcopilot.mcp.tools` 的实现仍然只读 ``ctx.llm``。
+        """
+        req = current_request()
+        if cfg.is_http and req is None:
+            # ⚠️ 不静默：读不到请求 = BYOK 头会被忽略、改用服务端 Key（要花钱的）
+            logger.error(
+                "HTTP 形态下取不到原始请求，BYOK 请求头本轮会被忽略，"
+                "将使用服务端配置的 Key。若 MCP SDK 升级后出现此日志，"
+                "说明工具不再与请求同任务执行，需改用 FastMCP 的 Context 注入。"
+            )
+        call_ctx = ctx.with_request(req)
         try:
-            out: dict[str, Any] = await fn(ctx, *args, **kwargs)
+            out: dict[str, Any] = await fn(call_ctx, **kwargs)
             return out
         except ToolError as e:
             logger.warning(f"工具参数问题: {e}")
@@ -263,7 +293,12 @@ def build_parser() -> argparse.ArgumentParser:
     )
     p.add_argument("--version", action="version", version=f"jobcopilot-mcp {__version__}")
     p.add_argument("--http", action="store_true", help="用 streamable HTTP 传输（默认 stdio）")
-    p.add_argument("--host", default=None, help="HTTP 监听地址（默认 127.0.0.1）")
+    p.add_argument(
+        "--host",
+        default=None,
+        help="HTTP 监听地址（默认 127.0.0.1）。非回环地址必须设 JOBCOPILOT_HTTP_TOKEN "
+        "并配 JOBCOPILOT_HTTP_ALLOWED_HOSTS，否则拒绝启动",
+    )
     p.add_argument("--port", type=int, default=None, help="HTTP 端口（默认 8765）")
     p.add_argument("--provider", default=None, help="LLM 预设（默认取环境变量）")
     p.add_argument("--model", default=None, help="覆盖模型名")
@@ -272,14 +307,125 @@ def build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="HTTP 形态下显式允许 source_path 读本地文件（默认禁用）",
     )
+    p.add_argument(
+        "--allow-public-bind",
+        action="store_true",
+        help="显式放弃「非回环绑定必须带访问令牌」的保护（仅限可信内网）",
+    )
     return p
+
+
+def _bearer_token(scope: Any) -> str | None:
+    """从 ASGI scope 里取 ``Authorization: Bearer <token>``（取不到返回 None）。"""
+    for key, value in scope.get("headers") or []:
+        if key.lower() == b"authorization":
+            raw: str = value.decode("latin-1").strip()
+            prefix = "bearer "
+            if raw.lower().startswith(prefix):
+                return raw[len(prefix) :].strip()
+            return None
+    return None
+
+
+async def _send_json(send: Any, status: int, payload: dict[str, Any]) -> None:
+    """最简 ASGI JSON 响应（避免为一处错误响应引入额外依赖）。"""
+    body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
+    await send(
+        {
+            "type": "http.response.start",
+            "status": status,
+            "headers": [
+                (b"content-type", b"application/json; charset=utf-8"),
+                (b"content-length", str(len(body)).encode()),
+            ],
+        }
+    )
+    await send({"type": "http.response.body", "body": body})
+
+
+class BearerAuthMiddleware:
+    """访问令牌校验（纯 ASGI 中间件）。
+
+    刻意不用 Starlette 的 ``BaseHTTPMiddleware``：它会把下游放进**另一个任务**、
+    并给流式响应套一层缓冲，而 streamable HTTP 恰恰是流式端点。
+    """
+
+    def __init__(self, app: Any, token: str) -> None:
+        self.app = app
+        self.token = token
+
+    async def __call__(self, scope: Any, receive: Any, send: Any) -> None:
+        if scope.get("type") != "http":
+            await self.app(scope, receive, send)
+            return
+        provided = _bearer_token(scope)
+        if provided is None:
+            await _send_json(
+                send,
+                401,
+                {
+                    "error": "缺少访问令牌",
+                    "hint": "请求需带 Authorization: Bearer <JOBCOPILOT_HTTP_TOKEN>",
+                },
+            )
+            return
+        if not secrets.compare_digest(provided, self.token):
+            await _send_json(send, 401, {"error": "访问令牌不正确"})
+            return
+        await self.app(scope, receive, send)
+
+
+def apply_transport_security(server: Any, config: ServerConfig) -> None:
+    """把配置里的 Host/Origin 白名单写进 SDK 的 DNS-rebinding 保护。
+
+    ⚠️ 不配就会沿用 SDK 默认（只放行回环地址），云端平台拿到的会是
+    ``421 Invalid Host header``。
+    """
+    from mcp.server.transport_security import TransportSecuritySettings
+
+    ts = config.transport_security()
+    server.settings.transport_security = TransportSecuritySettings(
+        enable_dns_rebinding_protection=ts.enable,
+        allowed_hosts=ts.allowed_hosts,
+        allowed_origins=ts.allowed_origins,
+    )
+
+
+def run_http(server: Any, config: ServerConfig) -> None:
+    """以 streamable HTTP 方式运行（必要时套上访问令牌校验）。"""
+    import uvicorn
+
+    server.settings.host = config.host
+    server.settings.port = config.port
+    apply_transport_security(server, config)
+
+    app: Any = server.streamable_http_app()
+    if config.http_token:
+        app = BearerAuthMiddleware(app, config.http_token)
+
+    print(
+        f"JobCopilot MCP Server（streamable-http）"
+        f" http://{config.host}:{config.port}/mcp"
+        f"  provider={config.provider}"
+        f"  source_path={'允许' if config.allow_source_path else '禁用'}"
+        f"  访问令牌={'已启用' if config.http_token else '未启用'}"
+        f"  Host 白名单={config.allowed_hosts or '(仅回环)'}",
+        file=sys.stderr,
+    )
+    if config.allow_public_bind and not config.is_loopback_bind:
+        print(
+            "⚠️  已按 JOBCOPILOT_ALLOW_PUBLIC_BIND 跳过令牌校验，任何能访问该端口的人"
+            "都能用掉本机配置的 LLM Key。请确认处于可信内网。",
+            file=sys.stderr,
+        )
+    uvicorn.run(app, host=config.host, port=config.port, log_level="info")
 
 
 def main(argv: list[str] | None = None) -> int:
     """MCP Server 入口。
 
     Returns:
-        进程退出码。
+        进程退出码（2 = HTTP 绑定安全校验未通过）。
     """
     import os
 
@@ -292,6 +438,8 @@ def main(argv: list[str] | None = None) -> int:
         os.environ["JOBCOPILOT_LLM_MODEL"] = args.model
     if args.allow_source_path:
         os.environ["JOBCOPILOT_ALLOW_SOURCE_PATH"] = "1"
+    if args.allow_public_bind:
+        os.environ["JOBCOPILOT_ALLOW_PUBLIC_BIND"] = "1"
 
     config = ServerConfig.from_env(transport=transport)
     if args.host:
@@ -299,23 +447,21 @@ def main(argv: list[str] | None = None) -> int:
     if args.port:
         config.port = args.port
 
+    # 安全闸：对外绑定必须先过校验（无鉴权的 HTTP 端点 = 公开你的 LLM Key）
+    bind_error = config.http_bind_error()
+    if bind_error:
+        print(f"❌ {bind_error}", file=sys.stderr)
+        return 2
+
     server = build_server(config)
     if config.is_http:
-        # FastMCP 从 settings 读 host/port
-        server.settings.host = config.host
-        server.settings.port = config.port
-        print(
-            f"JobCopilot MCP Server（streamable-http）"
-            f" http://{config.host}:{config.port}/mcp"
-            f"  provider={config.provider}  source_path={'允许' if config.allow_source_path else '禁用'}",
-            file=sys.stderr,
-        )
+        run_http(server, config)
     else:
         print(
             f"JobCopilot MCP Server（stdio）provider={config.provider}",
             file=sys.stderr,
         )
-    server.run(transport=transport)
+        server.run(transport="stdio")
     return 0
 
 
