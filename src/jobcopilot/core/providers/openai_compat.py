@@ -68,6 +68,9 @@ class OpenAICompatLLM:
                 f"或用 --api-key 传入。"
             )
         self._api_key = key
+        #: 累计用量（供宿主统计成本）。走 MCP 时内核自己调 LLM，
+        #: 宿主看不到这些调用——必须由内核报回去，否则费用统计出现黑洞。
+        self.usage: dict[str, int] = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0}
 
     @property
     def model(self) -> str:
@@ -113,6 +116,7 @@ class OpenAICompatLLM:
                         f"{self._preset.label} 返回 {resp.status_code}: {resp.text[:300]}"
                     )
                 data = resp.json()
+                self._record_usage(data)
                 return str(data["choices"][0]["message"]["content"])
             except ProviderError as e:
                 last_err = e
@@ -130,6 +134,14 @@ class OpenAICompatLLM:
         raise ProviderError(
             f"{self._preset.label} 调用失败（{type(last_err).__name__}）: {detail}"
         )
+
+
+    def _record_usage(self, data: dict[str, Any]) -> None:
+        """累计 token 用量（OpenAI 兼容响应里的 ``usage`` 字段）。"""
+        self.usage["calls"] += 1
+        u = data.get("usage") or {}
+        self.usage["prompt_tokens"] += int(u.get("prompt_tokens") or 0)
+        self.usage["completion_tokens"] += int(u.get("completion_tokens") or 0)
 
 
 def _retryable_http(msg: str) -> bool:

@@ -48,8 +48,14 @@ def default_data_dir() -> Path:
 
 
 def default_prompts_dir() -> Path:
-    """默认本地提示词目录。"""
-    return default_data_dir() / "prompts"
+    """本地提示词目录：``$JOBCOPILOT_PROMPTS_DIR`` 优先，否则 ``<data_dir>/prompts``。
+
+    ⚠️ 必须读这个环境变量：宿主（如 SEKB）靠它把**自己的**提示词目录传给内核
+    （SEKB 的 ``prompt/job`` 是 bind mount，运营可热改）。漏读会导致内核悄悄
+    改用包内 base——宿主的热改能力静默失效。
+    """
+    env = os.environ.get(ENV_PROMPTS_DIR, "").strip()
+    return Path(env) if env else default_data_dir() / "prompts"
 
 
 @dataclass

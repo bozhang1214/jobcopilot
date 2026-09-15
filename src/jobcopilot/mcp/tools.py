@@ -34,6 +34,19 @@ class ToolError(Exception):
     """工具层的可预期错误（会以清晰文案返回给调用方，而不是堆栈）。"""
 
 
+def usage_snapshot(llm: Any) -> dict[str, int]:
+    """读取 LLM 的累计用量（不支持则返回全 0）。"""
+    u = getattr(llm, "usage", None)
+    if not isinstance(u, dict):
+        return {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0}
+    return {k: int(u.get(k, 0)) for k in ("calls", "prompt_tokens", "completion_tokens")}
+
+
+def usage_delta(before: dict[str, int], after: dict[str, int]) -> dict[str, int]:
+    """两次快照之差 = 本次调用的真实用量。"""
+    return {k: after.get(k, 0) - before.get(k, 0) for k in before}
+
+
 @dataclass
 class ToolContext:
     """工具执行上下文：LLM、提示词、画像路径、安全策略。
@@ -135,6 +148,7 @@ async def analyze_job(
     prompt_pack: str | None = None,
     prompt_override: str | None = None,
     job_meta: dict[str, Any] | None = None,
+    user_profile: str | None = None,
 ) -> dict[str, Any]:
     """单职位 7 段分析。
 
@@ -146,6 +160,8 @@ async def analyze_job(
         prompt_pack: 职能族 pack（presales/product/engineering）。
         prompt_override: 覆盖「批量职位分析」提示词的整段文本。
         job_meta: 职位元信息（公司/薪资/城市等）。
+        user_profile: **按请求**注入的求职者画像。多用户宿主（如 SEKB）必须走这个参数——
+            ``save_profile`` 是进程级全局状态，无法承载「每个用户不同画像」。
 
     Returns:
         含 7 个分析段落 + ``prompt_meta`` 的字典。
@@ -158,9 +174,10 @@ async def analyze_job(
 
     resolver = ctx.resolver(pack)
     analyzer = SingleJobAnalyzer(ctx.llm, resolver=resolver)
-    result = await analyzer.analyze(
-        jd_text=jd_text, job_meta=job_meta, user_profile=get_profile(ctx)["profile"]
-    )
+    profile = user_profile if user_profile is not None else get_profile(ctx)["profile"]
+    _before = usage_snapshot(ctx.llm)
+    result = await analyzer.analyze(jd_text=jd_text, job_meta=job_meta, user_profile=profile)
+    result["usage"] = usage_delta(_before, usage_snapshot(ctx.llm))
 
     # ⚠️ 引擎内部「每步独立降级」是对的，但**在 API 边界上不能静默**：
     #    若 7 段全空，调用方看到的会是一个「成功但没内容」的结果，完全看不出
@@ -197,6 +214,7 @@ async def analyze_jobs_batch(
     city: str | None = None,
     prompt_pack: str | None = None,
     prompt_override: str | None = None,
+    user_profile: str | None = None,
 ) -> dict[str, Any]:
     """批量市场分析（返回完整报告，含 stats / market / knowledge_iteration）。
 
@@ -207,6 +225,7 @@ async def analyze_jobs_batch(
         keyword / city: 报告元信息。
         prompt_pack: 职能族 pack。
         prompt_override: 覆盖「批量职位分析」提示词的整段文本。
+        user_profile: **按请求**注入的求职者画像（多用户宿主必须走这个参数）。
 
     Raises:
         ToolError: 既没给 jobs 也没给 source_path，或读文件失败。
@@ -216,16 +235,20 @@ async def analyze_jobs_batch(
     if jobs is None:
         jobs = load_jobs_from_text(ctx.read_source(source_path or ""))
 
+    profile = user_profile if user_profile is not None else get_profile(ctx)["profile"]
+    _before = usage_snapshot(ctx.llm)
     report = await core_analyze_batch(
         ctx.llm,
         jobs,
-        get_profile(ctx)["profile"],
+        profile,
         keyword=keyword or "",
         city=city or "",
         resolver=ctx.resolver(prompt_pack, prompt_override),
     )
     if not report.get("job_count"):
         logger.warning("批量分析输入为空（既无标题也无 JD 的职位会被过滤）")
+
+    report["usage"] = usage_delta(_before, usage_snapshot(ctx.llm))
 
     # 同 analyze_job：两路 LLM 全失败时不能把「空报告」当成功返回
     if not report.get("market") and not report.get("knowledge_iteration"):

@@ -56,6 +56,9 @@ class BatchReport(TypedDict, total=False):
     knowledge_iteration: dict[str, Any]
     #: 产出本报告的提示词版本信息（pack / 指纹 / 覆盖了哪些章节）——可追溯性
     prompt_meta: dict[str, Any]
+    #: 本次分析的 token 用量。走 MCP 时内核自己调 LLM，宿主看不到这些调用，
+    #: 必须由内核报回去，否则宿主的费用统计会出现黑洞。
+    usage: dict[str, int]
     jobs: list[JobPosting]
 
 

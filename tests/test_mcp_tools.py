@@ -264,3 +264,143 @@ def test_sync_prompts_output_is_usable(tmp_path: Path) -> None:
     sync_prompts(ctx, pack="presales", remote=False)
     text = (tmp_path / "prompts" / "批量职位分析.md").read_text(encoding="utf-8")
     assert "年包" in text and "track_heatmap" in text
+
+
+@pytest.mark.asyncio
+async def test_analyze_job_per_request_profile_beats_saved(tmp_path: Path) -> None:
+    """按请求传入的画像必须**压过**已保存的全局画像。
+
+    多用户宿主（SEKB）每个请求的用户不同，而 ``save_profile`` 是进程级全局状态——
+    没有这个参数，SEKB 切到 MCP 后就会把 A 的画像用到 B 的分析上。
+    """
+    captured: list[str] = []
+
+    class SpyLLM:
+        async def complete(self, role, messages):
+            captured.extend(m.content for m in messages)
+            return '{"ok": 1}'
+
+    cfg = ServerConfig(
+        prompts_dir=tmp_path / "prompts", data_dir=tmp_path, profile_path=tmp_path / "p.txt"
+    )
+    ctx = ToolContext(llm=SpyLLM(), config=cfg)
+    save_profile(ctx, "全局画像-不应该出现")
+
+    await analyze_job(ctx, jd_text="JD", user_profile="请求画像-应该出现")
+    assert any("请求画像-应该出现" in c for c in captured)
+    assert not any("全局画像-不应该出现" in c for c in captured)
+
+
+@pytest.mark.asyncio
+async def test_analyze_job_falls_back_to_saved_profile(tmp_path: Path) -> None:
+    """不传 user_profile 时仍用已保存的画像（单用户场景）。"""
+    captured: list[str] = []
+
+    class SpyLLM:
+        async def complete(self, role, messages):
+            captured.extend(m.content for m in messages)
+            return '{"ok": 1}'
+
+    cfg = ServerConfig(
+        prompts_dir=tmp_path / "prompts", data_dir=tmp_path, profile_path=tmp_path / "p.txt"
+    )
+    ctx = ToolContext(llm=SpyLLM(), config=cfg)
+    save_profile(ctx, "已保存画像-应出现")
+    await analyze_job(ctx, jd_text="JD")
+    assert any("已保存画像-应出现" in c for c in captured)
+
+
+@pytest.mark.asyncio
+async def test_analyze_jobs_batch_per_request_profile(tmp_path: Path) -> None:
+    """批量分析同样支持按请求注入画像。"""
+    captured: list[str] = []
+
+    class SpyLLM:
+        async def complete(self, role, messages):
+            captured.extend(m.content for m in messages)
+            return '{"track_heatmap": []}'
+
+    cfg = ServerConfig(
+        prompts_dir=tmp_path / "prompts", data_dir=tmp_path, profile_path=tmp_path / "p.txt"
+    )
+    ctx = ToolContext(llm=SpyLLM(), config=cfg)
+    await analyze_jobs_batch(ctx, jobs=[{"title": "A"}], user_profile="批量请求画像")
+    assert any("批量请求画像" in c for c in captured)
+
+
+def test_prompts_dir_env_is_honored(monkeypatch) -> None:
+    """`JOBCOPILOT_PROMPTS_DIR` 必须生效。
+
+    宿主（SEKB）靠它把自身的提示词目录传给内核；漏读会让内核悄悄改用包内 base，
+    宿主的「提示词热改」能力**静默失效**（本地目录 bind mount 白挂了）。
+    """
+    from jobcopilot.mcp.config import ServerConfig, default_prompts_dir
+
+    monkeypatch.setenv("JOBCOPILOT_PROMPTS_DIR", "/tmp/host-prompts")
+    assert str(default_prompts_dir()) == "/tmp/host-prompts"
+    assert str(ServerConfig.from_env().prompts_dir) == "/tmp/host-prompts"
+
+
+def test_prompts_dir_falls_back_to_data_dir(monkeypatch) -> None:
+    """未设置时回落到 <data_dir>/prompts。"""
+    from jobcopilot.mcp.config import default_prompts_dir
+
+    monkeypatch.delenv("JOBCOPILOT_PROMPTS_DIR", raising=False)
+    monkeypatch.setenv("JOBCOPILOT_DATA_DIR", "/tmp/jc-data")
+    assert str(default_prompts_dir()) == "/tmp/jc-data/prompts"
+
+
+@pytest.mark.asyncio
+async def test_tool_reports_per_call_usage(tmp_path: Path) -> None:
+    """内核必须把**本次调用**的 token 用量报回宿主。
+
+    走 MCP 后是内核自己调 LLM，宿主的 LLM 工厂看不到这些调用——
+    没有这个字段，宿主的费用统计会出现黑洞。
+    """
+
+    class UsageLLM:
+        def __init__(self) -> None:
+            self.usage = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0}
+
+        async def complete(self, role, messages):
+            self.usage["calls"] += 1
+            self.usage["prompt_tokens"] += 100
+            self.usage["completion_tokens"] += 20
+            return '{"ok": 1}'
+
+    llm = UsageLLM()
+    cfg = ServerConfig(
+        prompts_dir=tmp_path / "prompts", data_dir=tmp_path, profile_path=tmp_path / "p"
+    )
+    ctx = ToolContext(llm=llm, config=cfg)
+
+    out = await analyze_job(ctx, jd_text="JD")
+    assert out["usage"]["calls"] == 7          # 单职位 7 步
+    assert out["usage"]["prompt_tokens"] == 700
+
+    # 第二次调用只应报**增量**，不是累计
+    out2 = await analyze_job(ctx, jd_text="JD")
+    assert out2["usage"]["calls"] == 7
+    assert out2["usage"]["prompt_tokens"] == 700
+
+
+@pytest.mark.asyncio
+async def test_batch_reports_usage(tmp_path: Path) -> None:
+    """批量分析同样回报用量（两路 LLM）。"""
+
+    class UsageLLM:
+        def __init__(self) -> None:
+            self.usage = {"calls": 0, "prompt_tokens": 0, "completion_tokens": 0}
+
+        async def complete(self, role, messages):
+            self.usage["calls"] += 1
+            self.usage["prompt_tokens"] += 50
+            return '{"track_heatmap": []}'
+
+    cfg = ServerConfig(
+        prompts_dir=tmp_path / "prompts", data_dir=tmp_path, profile_path=tmp_path / "p"
+    )
+    ctx = ToolContext(llm=UsageLLM(), config=cfg)
+    out = await analyze_jobs_batch(ctx, jobs=[{"title": "A"}])
+    assert out["usage"]["calls"] == 2
+    assert out["usage"]["prompt_tokens"] == 100

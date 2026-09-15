@@ -127,6 +127,7 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
         job_type: str | None = None,
         prompt_pack: str | None = None,
         prompt_override: str | None = None,
+        user_profile: str | None = None,
     ) -> dict[str, Any]:
         """单职位深度分析（7 段：深度解析/知识优先级/面试问答/差距/简历/项目/策略）。
 
@@ -136,6 +137,7 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
             job_type: 职位类型（presales/product/engineering 之一），等价于 prompt_pack。
             prompt_pack: 职能提示词包名。
             prompt_override: 直接覆盖"批量职位分析"提示词的整段文本（高级用法）。
+            user_profile: 按请求注入的求职者画像（多用户宿主用；不传则用已保存的）。
         """
         return await guard(
             _analyze_job,
@@ -144,6 +146,7 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
             job_type=job_type,
             prompt_pack=prompt_pack,
             prompt_override=prompt_override,
+            user_profile=user_profile,
         )
 
     @mcp.tool()
@@ -154,6 +157,7 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
         city: str | None = None,
         prompt_pack: str | None = None,
         prompt_override: str | None = None,
+        user_profile: str | None = None,
     ) -> dict[str, Any]:
         """批量职位市场分析（赛道热力/技能门槛/薪资锚点 + 知识迭代建议）。
 
@@ -164,6 +168,7 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
             city: 城市（写进报告）。
             prompt_pack: 职能提示词包名。
             prompt_override: 覆盖"批量职位分析"提示词的整段文本。
+            user_profile: 按请求注入的求职者画像（多用户宿主用；不传则用已保存的）。
         """
         return await guard(
             _analyze_jobs_batch,
@@ -173,6 +178,7 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
             city=city,
             prompt_pack=prompt_pack,
             prompt_override=prompt_override,
+            user_profile=user_profile,
         )
 
     @mcp.tool()
