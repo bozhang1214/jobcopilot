@@ -31,7 +31,7 @@ def test_pull_writes_composed_prompts(tmp_path: Path, capsys: pytest.CaptureFixt
     这点很关键：本地目录是「整文件优先」，如果拉下去的是片段，
     会丢掉 base 的 JSON 骨架，把提示词用坏。
     """
-    assert main(["pull", "--pack", "presales", "--dest", str(tmp_path)]) == 0
+    assert main(["pull", "--pack", "presales", "--dest", str(tmp_path), "--offline"]) == 0
     out = capsys.readouterr().out
     assert "写入" in out
 
@@ -47,17 +47,18 @@ def test_pull_writes_composed_prompts(tmp_path: Path, capsys: pytest.CaptureFixt
 
 
 def test_pull_writes_manifest(tmp_path: Path) -> None:
-    """pull 落一份 manifest，便于追溯来源与指纹。"""
-    main(["pull", "--pack", "product", "--dest", str(tmp_path)])
+    """pull 落一份 manifest，记录来源与版本，便于追溯。"""
+    main(["pull", "--pack", "product", "--dest", str(tmp_path), "--offline"])
     manifest = json.loads((tmp_path / ".jobcopilot-manifest.json").read_text(encoding="utf-8"))
+    # 离线模式走包内路径，manifest 记录 source=package 与各文件指纹
+    assert manifest["source"] == "package"
     assert manifest["pack"] == "product"
-    assert "批量职位分析.md" in manifest["prompts"]
-    assert manifest["prompts"]["批量职位分析.md"]["digest"]
+    assert "批量职位分析.md" in manifest["digests"]
 
 
 def test_pull_without_pack(tmp_path: Path) -> None:
     """不带 pack 时只拉 base。"""
-    assert main(["pull", "--dest", str(tmp_path)]) == 0
+    assert main(["pull", "--dest", str(tmp_path), "--offline"]) == 0
     assert "年包" not in (tmp_path / "批量职位分析.md").read_text(encoding="utf-8")
 
 
@@ -65,19 +66,19 @@ def test_pull_skips_existing_without_force(
     tmp_path: Path, capsys: pytest.CaptureFixture[str]
 ) -> None:
     """已存在时不覆盖（保护用户改过的提示词），--force 才覆盖。"""
-    main(["pull", "--dest", str(tmp_path)])
+    main(["pull", "--dest", str(tmp_path), "--offline"])
     (tmp_path / "批量职位分析.md").write_text("我改过的内容", encoding="utf-8")
 
-    main(["pull", "--dest", str(tmp_path)])
+    main(["pull", "--dest", str(tmp_path), "--offline"])
     assert (tmp_path / "批量职位分析.md").read_text(encoding="utf-8") == "我改过的内容"
     assert "跳过" in capsys.readouterr().out
 
-    main(["pull", "--dest", str(tmp_path), "--force"])
+    main(["pull", "--dest", str(tmp_path), "--offline", "--force"])
     assert "我改过的内容" not in (tmp_path / "批量职位分析.md").read_text(encoding="utf-8")
 
 
 def test_pull_unknown_pack_fails(tmp_path: Path) -> None:
-    assert main(["pull", "--pack", "不存在的pack", "--dest", str(tmp_path)]) == 2
+    assert main(["pull", "--pack", "不存在的pack", "--dest", str(tmp_path), "--offline"]) == 2
 
 
 # ---------- pack ----------
@@ -140,3 +141,34 @@ def test_eval_fails_on_prompt_change(
 
     assert main(["eval", "--level", "12", "--baseline", str(baseline)]) == 1
     assert "指纹" in capsys.readouterr().out
+
+
+def test_pull_remote_from_explicit_source(tmp_path: Path, capsys) -> None:
+    """CLI 走远端：用 file:// 做源，测试自洽且覆盖远端路径。"""
+    from jobcopilot.core.prompts.remote import sha256_of
+
+    src = tmp_path / "src"
+    (src / "base").mkdir(parents=True)
+    (src / "base" / "批量职位分析.md").write_text("# base\n## 背景\nx\n", encoding="utf-8")
+    manifest = {
+        "schema": 1,
+        "version": "cli-test",
+        "packs": [],
+        "files": {"base/批量职位分析.md": sha256_of("# base\n## 背景\nx\n")},
+    }
+    (src / "manifest.json").write_text(json.dumps(manifest), encoding="utf-8")
+
+    dest = tmp_path / "dest"
+    assert main(["pull", "--dest", str(dest), "--source", src.as_uri()]) == 0
+    out = capsys.readouterr().out
+    assert "cli-test" in out and "生效源" in out
+    assert (dest / "批量职位分析.md").exists()
+
+
+def test_pull_remote_falls_back_and_reports(tmp_path: Path, capsys) -> None:
+    """远端全不可用时回落包内，并在输出里明确说明。"""
+    dest = tmp_path / "dest"
+    assert main(["pull", "--dest", str(dest), "--source", (tmp_path / "无").as_uri()]) == 0
+    out = capsys.readouterr().out
+    assert "package" in out
+    assert "回落到" in out

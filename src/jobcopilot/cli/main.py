@@ -40,8 +40,9 @@ def default_prompts_dir() -> Path:
 
 
 def cmd_pull(args: argparse.Namespace) -> int:
-    """把提示词（base + 可选 pack）合并后写到本地目录。"""
-    from jobcopilot.core.prompts.resolver import PromptResolver, available_packs, base_dir
+    """把提示词拉到本地目录（默认走远端，带三级回退）。"""
+    from jobcopilot.core.prompts.remote import sync_to_local
+    from jobcopilot.core.prompts.resolver import available_packs
 
     dest = Path(args.dest) if args.dest else default_prompts_dir()
     pack = args.pack or None
@@ -50,46 +51,63 @@ def cmd_pull(args: argparse.Namespace) -> int:
         print(f"❌ 未知 pack: {pack!r}；可用: {', '.join(available_packs()) or '（无）'}")
         return EXIT_USAGE
 
-    dest.mkdir(parents=True, exist_ok=True)
+    if args.offline:
+        return _pull_offline(dest, pack, force=args.force)
 
-    # 合并后的文本才是「可直接改的完整提示词」：
-    # 直接把 pack 的片段拷过去会缺少 base 的 JSON 骨架，本地整文件优先会把它用坏。
+    try:
+        outcome = sync_to_local(
+            dest,
+            pack=pack,
+            sources=[args.source] if args.source else None,
+            timeout=args.timeout,
+            overwrite=args.force,
+        )
+    except Exception as e:  # noqa: BLE001
+        print(f"❌ 同步失败: {str(e)[:300]}")
+        return EXIT_FAIL
+
+    print(f"📦 提示词目录: {dest}")
+    print(f"   pack      : {pack or '（仅 base）'}")
+    print(f"   生效源    : {outcome.source}" + ("  ⚠️ 已回退" if outcome.used_fallback else ""))
+    if outcome.version:
+        print(f"   版本      : {outcome.version}")
+    skip_note = f"，跳过 {len(outcome.skipped)} 个（--force 可覆盖）" if outcome.skipped else ""
+    print(f"   写入 {len(outcome.written)} 个{skip_note}")
+    for err in outcome.errors:
+        print(f"     ⚠️ {err[:140]}")
+    if outcome.source == "package":
+        print("   ⚠️ 所有远端源不可用，已回落到**包内**提示词（版本可能落后于线上）")
+    print("\n该目录优先级高于包内提示词，改完直接生效（jobcopilot pack 可查看来源）。")
+    return EXIT_OK
+
+
+def _pull_offline(dest: Path, pack: str | None, force: bool) -> int:
+    """离线模式：直接用包内提示词（不走网络）。"""
+    from jobcopilot.core.prompts.resolver import PromptResolver, base_dir
+
+    dest.mkdir(parents=True, exist_ok=True)
     resolver = PromptResolver(pack=pack)
     written, skipped = [], []
+    contents: dict[str, str] = {}
     for name in resolver.available():
-        src_name = name
         text = resolver.get(name)
         if not text:
             continue
-        target = dest / src_name
-        if target.exists() and not args.force:
+        contents[name] = text
+        target = dest / name
+        if target.exists() and not force:
             skipped.append(name)
             continue
         target.write_text(text, encoding="utf-8")
         written.append(name)
+    # 与远端路径一致：留下来源记录（source=package）
+    from jobcopilot.core.prompts.remote import write_local_manifest
 
-    manifest = {
-        "tool": "jobcopilot",
-        "version": __version__,
-        "pack": pack or "",
-        "source": "package",
-        "prompts": {n: resolver.meta(n).to_dict() for n in written},
-    }
-    (dest / ".jobcopilot-manifest.json").write_text(
-        json.dumps(manifest, ensure_ascii=False, indent=2), encoding="utf-8"
-    )
-
-    print(f"📦 提示词目录: {dest}")
+    write_local_manifest(dest, "package", "", pack, contents)
+    print(f"📦 提示词目录: {dest}（离线模式：仅用包内）")
     print(f"   pack      : {pack or '（仅 base）'}")
     print(f"   base 来源 : {base_dir()}")
     print(f"   写入 {len(written)} 个" + (f"，跳过已存在 {len(skipped)} 个（--force 可覆盖）" if skipped else ""))
-    for n in written:
-        src = resolver.source_of(n)
-        print(f"     + {n:28s} [{src}]")
-    if skipped:
-        for n in skipped:
-            print(f"     = {n:28s} [已存在，跳过]")
-    print("\n该目录优先级高于包内提示词，改完直接生效（可用 jobcopilot pack 查看来源）。")
     return EXIT_OK
 
 
@@ -371,10 +389,13 @@ def build_parser() -> argparse.ArgumentParser:
     p.add_argument("--version", action="version", version=f"jobcopilot {__version__}")
     sub = p.add_subparsers(dest="command", required=True)
 
-    sp = sub.add_parser("pull", help="把提示词（base 或某个职能 pack）合并后拉到本地目录")
+    sp = sub.add_parser("pull", help="拉取提示词到本地目录（默认走远端，含三级回退）")
     sp.add_argument("--pack", help="职能族名（presales / product / engineering …）")
     sp.add_argument("--dest", help="目标目录（默认 $JOBCOPILOT_PROMPTS_DIR 或 ~/.jobcopilot/prompts）")
     sp.add_argument("--force", action="store_true", help="覆盖已存在的文件")
+    sp.add_argument("--source", help="只从该 URL 拉取（覆盖默认源链）")
+    sp.add_argument("--offline", action="store_true", help="离线模式：直接用包内提示词，不走网络")
+    sp.add_argument("--timeout", type=float, default=20.0, help="单次网络超时秒数（默认 20）")
     sp.set_defaults(func=cmd_pull)
 
     sp = sub.add_parser("pack", help="列出内置职能 pack / 查看某个 pack 的覆盖情况")

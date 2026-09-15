@@ -25,18 +25,27 @@ import hashlib
 import json
 import ssl
 import urllib.error
+import urllib.parse
 import urllib.request
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
 
 from jobcopilot.core.logging import get_logger
+from jobcopilot.core.prompts.compose import compose, digest
 
 logger = get_logger(__name__)
 
-#: 自建主源（nginx 静态目录）→ GitHub 备源
+#: 三级源链：**自建主源** → **公共镜像（两个入口）** → 包内兜底。
+#:
+#: 备源放两个入口而不是一个，是因为实测国内到 raw.githubusercontent.com
+#: 会间歇性读写超时；jsDelivr CDN 同样服务这份 GitHub 内容但更稳。
+#: ⚠️ 代价：jsDelivr 对 ``@main`` 有缓存（可能滞后数小时）。所以它排在
+#: raw 之前只为了「主源挂了时**先拿到能用的一份**」——版本可能略旧，
+#: 但 manifest 与文件来自同一缓存，内部始终自洽（sha256 会校验通过）。
 DEFAULT_SOURCES: tuple[str, ...] = (
     "https://bos-studio.tech/prompts/",
+    "https://cdn.jsdelivr.net/gh/bozhang1214/jobcopilot-prompts@main/",
     "https://raw.githubusercontent.com/bozhang1214/jobcopilot-prompts/main/",
 )
 
@@ -105,7 +114,15 @@ def resolve_sources(explicit: str | None = None) -> list[str]:
 
 
 def _join(base: str, path: str) -> str:
-    return f"{base.rstrip('/')}/{path.lstrip('/')}"
+    """拼接 URL，并对路径做百分号编码。
+
+    ⚠️ 必须编码：提示词文件名是中文（``base/批量职位分析.md``），
+    ``urllib`` 在发 HTTP 请求时会把 URL 按 ASCII 编码，未编码会直接抛
+    ``UnicodeEncodeError: 'ascii' codec can't encode characters``。
+    ``file://`` 不走这条路径，所以本地单测发现不了——必须显式编码。
+    """
+    quoted = urllib.parse.quote(path.lstrip("/"), safe="/")
+    return f"{base.rstrip('/')}/{quoted}"
 
 
 def _ssl_context() -> "ssl.SSLContext | None":
@@ -239,6 +256,25 @@ def split_by_level(files: dict[str, str], pack: str | None) -> tuple[dict[str, s
     return base, pack_files
 
 
+def write_local_manifest(
+    dest: Path, source: str, version: str, pack: str | None, files: dict[str, str]
+) -> None:
+    """在本地提示词目录落一份 manifest。
+
+    记录「这批提示词来自哪个源、哪个版本」，供 ``jobcopilot doctor`` 与排障用——
+    否则本地目录被改过之后，没人说得清它到底是哪一版。
+    """
+    manifest = {
+        "source": source,
+        "version": version,
+        "pack": pack or "",
+        "digests": {name: digest(text) for name, text in sorted(files.items())},
+    }
+    (dest / ".jobcopilot-manifest.json").write_text(
+        json.dumps(manifest, ensure_ascii=False, indent=2) + "\n", encoding="utf-8"
+    )
+
+
 def _write_local(
     dest: Path,
     base_files: dict[str, str],
@@ -250,8 +286,6 @@ def _write_local(
     ⚠️ 必须写入**合并后**的完整文本：本地目录是整文件优先，只写 pack 片段
     会让它丢掉 base 的 JSON 骨架（这正是章节级合并要解决的问题）。
     """
-    from jobcopilot.core.prompts.compose import compose
-
     written: list[str] = []
     skipped: list[str] = []
     dest.mkdir(parents=True, exist_ok=True)
@@ -319,6 +353,11 @@ def sync_to_local(
             if not base_files:
                 raise RemoteError("清单里没有任何 base 提示词")
             written, skipped = _write_local(dest, base_files, pack_files, overwrite)
+            merged_all = {
+                name: (compose(base_text, pack_files[name])[0] if name in pack_files else base_text)
+                for name, base_text in base_files.items()
+            }
+            write_local_manifest(dest, source, manifest.version, pack, merged_all)
             logger.info(
                 f"提示词已从远端同步 source={source} version={manifest.version} "
                 f"written={len(written)}"
@@ -349,6 +388,7 @@ def sync_to_local(
     }
     base_files = {k: v for k, v in base_files.items() if v}
     written, skipped = _write_local(dest, base_files, {}, overwrite)
+    write_local_manifest(dest, "package", "", pack, base_files)
     logger.warning(
         f"所有远端源不可用，已回落到**包内**提示词（版本可能落后于线上）: {len(errors)} 个源失败"
     )

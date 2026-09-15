@@ -159,6 +159,37 @@ jobcopilot doctor                  # 自检：提示词 / pack / provider Key / 
 
 ---
 
+## 提示词分发（三级回退）
+
+提示词会持续调优，让人为了换个提示词去升级整个 Python 包并不合理。所以有独立分发：
+
+```bash
+jobcopilot pull --remote            # 拉最新提示词（三级回退）
+jobcopilot pull --pack presales     # 指定职能包
+jobcopilot pull --offline           # 离线：只用包内那份
+```
+
+| 级 | 源 | 说明 |
+|---|---|---|
+| 1 | `https://bos-studio.tech/prompts/` | 自建主源（nginx 静态目录） |
+| 2 | jsDelivr CDN → GitHub raw | 公共镜像两个入口；实测国内到 `raw.githubusercontent.com` 会间歇超时，所以 CDN 排前面 |
+| 3 | 包内 | 断网也能用；结果里会标注"已回落到包内" |
+
+**完整性校验**：`manifest.json` 带每个文件的 sha256，下载后逐个校验，不一致即**中止同步**——
+提示词会被注入 LLM，被篡改的后果比下载失败严重得多。
+
+**发布**（维护者）：
+
+```bash
+jobcopilot publish --out /path/to/jobcopilot-prompts   # 生成分发目录 + manifest
+jobcopilot publish --out <dir> --check                 # CI 校验产物是否与包内一致
+```
+
+`version` 由内容决定，发布是幂等的。发布时会**拒绝**任何会破坏 base JSON 输出骨架的
+pack（章节块边界是"到下一个标题为止"，覆盖最后一个标题会连带替换掉骨架）。
+
+---
+
 ## MCP Server
 
 把内核能力暴露成 **MCP 工具**，任何支持 MCP 的客户端都能直接用。
@@ -253,7 +284,7 @@ L2 的关键设计是**提示词指纹**：提示词变了而基线没更新就�
 
 ```bash
 pip install -e ".[dev]"
-pytest -q          # 177 passed
+pytest -q          # 206 passed
 ruff check src tests
 mypy src           # strict，零错误
 ```

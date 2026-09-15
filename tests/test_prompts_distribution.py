@@ -64,7 +64,12 @@ def test_manifest_parse_rejects_schema_mismatch() -> None:
 
 def test_resolve_sources_precedence(monkeypatch: pytest.MonkeyPatch) -> None:
     monkeypatch.delenv(ENV_SOURCES, raising=False)
-    assert len(resolve_sources()) == 2  # 默认：自建 + GitHub
+    # 默认三级：自建主源 → jsDelivr（GitHub 内容的国内可达 CDN）→ GitHub raw
+    default = resolve_sources()
+    assert len(default) == 3
+    assert default[0].startswith("https://bos-studio.tech/")
+    assert any("jsdelivr" in s for s in default)
+    assert any("raw.githubusercontent" in s for s in default)
     assert resolve_sources("https://x/") == ["https://x/"]
     monkeypatch.setenv(ENV_SOURCES, "https://a/,https://b/")
     assert resolve_sources() == ["https://a/", "https://b/"]
@@ -289,3 +294,43 @@ def test_publish_refuses_pack_that_breaks_json_skeleton(tmp_path: Path, monkeypa
     finally:
         pack_file.write_text(original, encoding="utf-8")
     assert base_dir().exists()
+
+
+def test_join_percent_encodes_non_ascii_paths() -> None:
+    """中文文件名必须被百分号编码。
+
+    真实端点（https）下，未编码的 URL 会让 urllib 抛
+    `UnicodeEncodeError: 'ascii' codec can't encode characters`；
+    而 `file://` 不走那条路径，所以本地单测**发现不了**——这条断言专门钉住它。
+    """
+    from jobcopilot.core.prompts.remote import _join
+
+    url = _join("https://example.com/prompts/", "base/批量职位分析.md")
+    assert url.startswith("https://example.com/prompts/base/")
+    assert "批量" not in url, "路径未编码"
+    assert "%E6%89%B9%E9%87%8F" in url  # 「批量」的 UTF-8 百分号编码
+    assert url.isascii(), "URL 必须全部落在 ASCII 范围内"
+
+    # 保留路径分隔符，否则会变成一个错误的单段路径
+    assert "/" in url.removeprefix("https://example.com/prompts/")
+
+
+def test_sync_writes_local_manifest(tmp_path: Path) -> None:
+    """同步后在本地目录落 manifest：记录来源与版本，便于排障与追溯。"""
+    src = make_source(tmp_path / "src")
+    dest = tmp_path / "dest"
+    sync_to_local(dest, pack="presales", sources=[src])
+    m = json.loads((dest / ".jobcopilot-manifest.json").read_text(encoding="utf-8"))
+    assert m["source"] == src
+    assert m["version"] == "test-vers"
+    assert m["pack"] == "presales"
+    assert m["digests"]
+
+
+def test_package_fallback_writes_local_manifest(tmp_path: Path) -> None:
+    """包内兜底也要落 manifest（否则事后无从判断这批提示词的来路）。"""
+    dest = tmp_path / "dest"
+    sync_to_local(dest, pack="presales", sources=[(tmp_path / "nope").as_uri()])
+    m = json.loads((dest / ".jobcopilot-manifest.json").read_text(encoding="utf-8"))
+    assert m["source"] == "package"
+    assert m["digests"]
