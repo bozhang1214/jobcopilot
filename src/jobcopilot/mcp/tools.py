@@ -91,7 +91,9 @@ class ToolContext:
         """
         from jobcopilot.mcp.request_keys import credentials_from_request, resolve_llm
 
-        creds = credentials_from_request(request)
+        # 服务端设了访问令牌时，Authorization 头归令牌用；没设时才允许调用方
+        # 顺着平台 UI 的惯例把 LLM Key 填在 Authorization: Bearer 里。
+        creds = credentials_from_request(request, allow_authorization=not self.config.http_token)
         if creds is None:
             return self.llm
         logger.info(
@@ -168,8 +170,8 @@ class ToolContext:
 # ============================================================
 
 
-def load_jobs_from_text(text: str) -> list[dict[str, Any]]:
-    """把 ``source_path`` 的内容解析成职位列表。
+def load_jobs_from_text(text: str, *, strict_json: bool = False) -> list[dict[str, Any]]:
+    """把 ``source_path`` 的内容（或参数里的字符串）解析成职位列表。
 
     支持三种形态（尽量宽容，让调用方少踩坑）：
 
@@ -177,19 +179,37 @@ def load_jobs_from_text(text: str) -> list[dict[str, Any]]:
     - JSON 对象且含 ``jobs`` 键 → 取 ``jobs``；
     - JSON 对象且含 ``jd_text`` → 视为**单个职位**；
     - 其他（纯文本 / Markdown）→ 视为**单个 JD 正文**。
+
+    Args:
+        text: 待解析文本。
+        strict_json: 「看起来像 JSON 但解析不了」时是否报错。
+
+            - ``False``（默认，用于 ``source_path``）：降级当纯文本 JD——文件是人写的，
+              一个以 ``{`` 开头的 Markdown 并不罕见。
+            - ``True``（用于**工具参数**里的字符串）：直接报可操作错误。参数里的字符串
+              通常是平台转发的 JSON，一旦被截断/转义坏，宽容处理会把「JSON 烂了」变成
+              「分析了一段乱码 JD」，调用方很难察觉。
     """
     stripped = text.strip()
     if stripped.startswith(("[", "{")):
         try:
             data = json.loads(stripped)
-        except json.JSONDecodeError:
-            return [{"jd_text": text}]  # 看起来像 JSON 但坏了 → 当纯文本处理
+        except json.JSONDecodeError as e:
+            if strict_json:
+                raise ToolError(
+                    "jobs 看起来是 JSON，但解析失败（平台可能截断了结构化数据或转义有误）。"
+                    "请改传完整的 JSON 数组，或直接传纯文本 JD。"
+                    f"解析错误：{str(e)[:120]}"
+                ) from e
+            return [{"jd_text": text}]
         if isinstance(data, list):
             return [j for j in data if isinstance(j, dict)]
         if isinstance(data, dict):
             if isinstance(data.get("jobs"), list):
                 return [j for j in data["jobs"] if isinstance(j, dict)]
             return [data]
+        if strict_json:
+            raise ToolError("jobs 的 JSON 顶层必须是数组或对象")
     return [{"jd_text": text}]
 
 
@@ -262,7 +282,7 @@ async def analyze_job(
 
 async def analyze_jobs_batch(
     ctx: ToolContext,
-    jobs: list[dict[str, Any]] | None = None,
+    jobs: list[dict[str, Any]] | str | None = None,
     source_path: str | None = None,
     keyword: str | None = None,
     city: str | None = None,
@@ -274,7 +294,10 @@ async def analyze_jobs_batch(
 
     Args:
         ctx: 执行上下文。
-        jobs: 职位列表；与 ``source_path`` 二选一。
+        jobs: 职位列表；与 ``source_path`` 二选一。**也接受 JSON 字符串**——
+            部分平台（Dify / 扣子的 OpenAPI 插件路线）无法声明嵌套对象数组，
+            只能把结构化数据当字符串传，此时按 ``load_jobs_from_text`` 的规则解析
+            （支持 JSON 数组、``{"jobs": [...]}``，也容忍纯文本 JD）。
         source_path: 从服务端文件读取职位列表（**88 个职位走这条路，别当参数传**）。
         keyword / city: 报告元信息。
         prompt_pack: 职能族 pack。
@@ -282,11 +305,15 @@ async def analyze_jobs_batch(
         user_profile: **按请求**注入的求职者画像（多用户宿主必须走这个参数）。
 
     Raises:
-        ToolError: 既没给 jobs 也没给 source_path，或读文件失败。
+        ToolError: 既没给 jobs 也没给 source_path，或读文件/解析失败。
     """
     if jobs is None and source_path is None:
         raise ToolError("必须提供 jobs 或 source_path 之一")
     ensure_llm_usable(ctx.llm)
+    if isinstance(jobs, str):
+        # 平台只能传字符串时的兼容路径。用 strict_json：平台转发坏了的 JSON
+        # 必须报错，不能被当成「一段乱码 JD」分析掉。
+        jobs = load_jobs_from_text(jobs, strict_json=True)
     if jobs is None:
         jobs = load_jobs_from_text(ctx.read_source(source_path or ""))
 

@@ -55,21 +55,42 @@ class RequestCredentials:
     model: str | None = None
 
 
+def _bearer(headers: Mapping[str, str]) -> str | None:
+    """从 ``Authorization: Bearer <x>`` 里取出 ``<x>``（取不到返回 None）。"""
+    raw = (headers.get("authorization") or "").strip()
+    if not raw:
+        return None
+    prefix = "bearer "
+    if raw.lower().startswith(prefix):
+        return raw[len(prefix) :].strip() or None
+    return None
+
+
 def credentials_from_headers(
     headers: Mapping[str, str],
+    *,
+    allow_authorization: bool = False,
 ) -> RequestCredentials | None:
     """从 HTTP 头解析 BYOK 凭据。
 
     Args:
         headers: 请求头（大小写不敏感的实现即可，如 Starlette 的 ``Headers``）。
+        allow_authorization: 是否允许把 ``Authorization: Bearer <x>`` 也当作 LLM Key。
+            **只有服务端未设访问令牌时才应为 True**——否则同一个头既是门禁又是 Key，
+            「令牌错」与「Key 无效」两类问题会纠缠在一起。
 
     Returns:
-        有 ``X-JobCopilot-Api-Key`` 时返回凭据，否则 ``None``（回落服务端配置）。
+        有可用 Key 时返回凭据，否则 ``None``（回落服务端配置）。
 
     Note:
-        ``Authorization`` 头**不**参与解析——它属于服务访问令牌，见模块文档。
+        ``X-JobCopilot-Api-Key`` 优先级**高于** ``Authorization``：即使两者都存在，
+        也以显式头为准，便于「带了服务令牌又带自己的 Key」这种组合。
     """
     api_key = (headers.get(HEADER_API_KEY) or "").strip()
+    if not api_key and allow_authorization:
+        # 扣子 / Dify 的 MCP 配置界面惯例是让用户填 Authorization: Bearer <x>，
+        # 用户很自然会把 LLM Key 填在那里。服务端没设访问令牌时，就顺着这个惯例走。
+        api_key = _bearer(headers) or ""
     if not api_key:
         return None
     provider = (headers.get(HEADER_PROVIDER) or "").strip() or None
@@ -105,14 +126,18 @@ def current_request() -> Any | None:
     return getattr(req_ctx, "request", None)
 
 
-def credentials_from_request(request: Any | None) -> RequestCredentials | None:
-    """从 Starlette ``Request`` 解析 BYOK 凭据（无请求头则 ``None``）。"""
+def credentials_from_request(
+    request: Any | None,
+    *,
+    allow_authorization: bool = False,
+) -> RequestCredentials | None:
+    """从 Starlette ``Request`` 解析 BYOK 凭据（无可用请求头则 ``None``）。"""
     if request is None:
         return None
     headers = getattr(request, "headers", None)
     if headers is None:
         return None
-    return credentials_from_headers(headers)
+    return credentials_from_headers(headers, allow_authorization=allow_authorization)
 
 
 def _cache_key(creds: RequestCredentials, config: ServerConfig) -> str:

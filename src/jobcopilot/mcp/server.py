@@ -213,7 +213,7 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
 
     @mcp.tool()
     async def analyze_jobs_batch(
-        jobs: list[dict[str, Any]] | None = None,
+        jobs: list[dict[str, Any]] | str | None = None,
         source_path: str | None = None,
         keyword: str | None = None,
         city: str | None = None,
@@ -225,6 +225,8 @@ def build_server(config: ServerConfig | None = None, llm: LLMPort | None = None)
 
         Args:
             jobs: 职位列表（每项含 title/company/salary/city/jd_text）。
+                也接受 JSON 字符串——Dify / 扣子的 OpenAPI 路线无法声明嵌套对象数组，
+                只能把结构化数据当字符串传。
             source_path: 服务端本地文件（推荐用于几十上百个职位，避免烧 token）。
             keyword: 本次分析的关键词（写进报告）。
             city: 城市（写进报告）。

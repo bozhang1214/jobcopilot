@@ -199,6 +199,57 @@ async def test_analyze_jobs_batch_with_jobs(tmp_path: Path) -> None:
 
 
 @pytest.mark.asyncio
+async def test_analyze_jobs_batch_accepts_json_string(tmp_path: Path) -> None:
+    """``jobs`` 也接受 JSON 字符串。
+
+    Dify / 扣子的 OpenAPI 插件路线无法声明嵌套对象数组（Dify 源码里会把它降级成
+    STRING），只能把结构化数据当字符串传——这条兼容路径让它们仍能调用批量分析。
+    """
+    payload = json.dumps(
+        [
+            {"title": "AI Agent 工程师", "company": "A"},
+            {"title": "RAG 算法工程师", "company": "B"},
+        ],
+        ensure_ascii=False,
+    )
+    out = await analyze_jobs_batch(make_ctx(tmp_path), jobs=payload, keyword="Agent")
+    assert out["job_count"] == 2
+
+
+@pytest.mark.asyncio
+async def test_analyze_jobs_batch_accepts_wrapped_json_string(tmp_path: Path) -> None:
+    """``{"jobs": [...]}`` 形态的字符串同样支持。"""
+    payload = json.dumps({"jobs": [{"title": "售前架构师", "company": "C"}]}, ensure_ascii=False)
+    out = await analyze_jobs_batch(make_ctx(tmp_path), jobs=payload)
+    assert out["job_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_analyze_jobs_batch_string_malformed_json_raises(tmp_path: Path) -> None:
+    """**参数**里的字符串若「像 JSON 但坏了」必须报错。
+
+    否则平台把结构化数据截断后，会被静默当成「一段乱码 JD」分析掉，调用方很难察觉
+    （对照：``source_path`` 的文件内容仍保持宽容，见下一条）。
+    """
+    with pytest.raises(ToolError, match="看起来是 JSON"):
+        await analyze_jobs_batch(make_ctx(tmp_path), jobs='[{"title": "A"}, {"title"')
+
+
+@pytest.mark.asyncio
+async def test_analyze_jobs_batch_string_plain_text_is_a_single_jd(tmp_path: Path) -> None:
+    """不以 ``[/{`` 开头的字符串仍按「单个 JD 正文」处理（宽容路径保留）。"""
+    out = await analyze_jobs_batch(make_ctx(tmp_path), jobs="招聘 Agent 工程师，要求熟悉 Python")
+    assert out["job_count"] == 1
+
+
+@pytest.mark.asyncio
+async def test_analyze_jobs_batch_string_empty_json_list(tmp_path: Path) -> None:
+    """空数组 → 0 个职位（不报错，但 job_count 为 0，调用方可据此察觉）。"""
+    out = await analyze_jobs_batch(make_ctx(tmp_path), jobs="[]")
+    assert out["job_count"] == 0
+
+
+@pytest.mark.asyncio
 async def test_analyze_jobs_batch_from_source_path(tmp_path: Path) -> None:
     f = tmp_path / "jobs.json"
     f.write_text(json.dumps([{"title": "A", "company": "C"}, {"title": "B"}]), encoding="utf-8")

@@ -190,9 +190,56 @@ def test_credentials_from_headers_optional_overrides() -> None:
 
 
 def test_authorization_is_not_treated_as_llm_key() -> None:
-    """鉴权头与 BYOK 头必须分开：混用会让「令牌错」与「Key 无效」纠缠在一起。"""
+    """默认不把鉴权头当 LLM Key：混用会让「令牌错」与「Key 无效」纠缠在一起。"""
     creds = request_keys.credentials_from_headers({"authorization": f"Bearer {TOKEN}"})
     assert creds is None
+
+
+def test_authorization_used_as_llm_key_when_allowed() -> None:
+    """服务端**没设**访问令牌时，顺着扣子/Dify 的 UI 惯例接受 Authorization 里的 Key。"""
+    creds = request_keys.credentials_from_headers(
+        {"authorization": "Bearer sk-from-platform"}, allow_authorization=True
+    )
+    assert creds is not None
+    assert creds.api_key == "sk-from-platform"
+
+
+def test_explicit_header_wins_over_authorization() -> None:
+    """两个头都在时以显式头为准（「带了服务令牌又带自己 Key」的组合）。"""
+    creds = request_keys.credentials_from_headers(
+        {"authorization": f"Bearer {TOKEN}", "x-jobcopilot-api-key": "sk-mine"},
+        allow_authorization=True,
+    )
+    assert creds is not None
+    assert creds.api_key == "sk-mine"
+
+
+def test_authorization_non_bearer_is_ignored() -> None:
+    """非 Bearer 形式的 Authorization 不当 Key（如 Basic / 平台自定义方案）。"""
+    creds = request_keys.credentials_from_headers(
+        {"authorization": "Basic dXNlcjpwYXNz"}, allow_authorization=True
+    )
+    assert creds is None
+
+
+def test_authorization_fallback_respects_server_token(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """设了服务令牌 → Authorization 归令牌，不能当成 LLM Key。"""
+    monkeypatch.setattr("jobcopilot.core.providers.OpenAICompatLLM", RecordingLLM)
+    startup = StartupLLM()
+
+    with_token = ToolContext(
+        llm=startup,
+        config=ServerConfig(transport="streamable-http", http_token=TOKEN),
+    )
+    assert with_token.with_request(_FakeRequest({"authorization": "Bearer sk-x"})).llm is startup
+    assert RecordingLLM.keys == []
+
+    no_token = ToolContext(llm=startup, config=ServerConfig(transport="streamable-http"))
+    derived = no_token.with_request(_FakeRequest({"authorization": "Bearer sk-x"}))
+    assert derived.llm is not startup
+    assert RecordingLLM.keys == ["sk-x"]
 
 
 def test_current_request_is_none_outside_request() -> None:
@@ -388,3 +435,49 @@ def test_http_without_byok_header_uses_startup_llm(monkeypatch: pytest.MonkeyPat
         )
     assert RecordingLLM.keys == []
     assert startup.calls > 0
+
+
+# ============================================================
+# 四、平台硬约束（云端平台侧的限制，见 docs/integrations/）
+# ============================================================
+
+
+def test_tool_names_satisfy_platform_regex() -> None:
+    """工具名必须匹配 ``^[a-zA-Z0-9_-]{1,64}$``。
+
+    Dify 源码用它校验 operationId、多数 MCP 客户端也同限制；扣子未公开规则，
+    但同一命名最安全。这条防止将来加工具时不小心用了中文名/点号/超长名。
+    """
+    import re
+
+    pattern = re.compile(r"^[a-zA-Z0-9_-]{1,64}$")
+    srv = build_server(ServerConfig(transport="stdio"), llm=StartupLLM())
+
+    async def _names() -> list[str]:
+        tools = await srv.list_tools()
+        return [t.name for t in tools]
+
+    names = asyncio.run(_names())
+    assert names
+    for n in names:
+        assert pattern.match(n), f"工具名不符合平台正则: {n}"
+
+
+def test_endpoint_get_is_not_5xx() -> None:
+    """``/mcp`` 端点必须存在且不因 GET 而 5xx。
+
+    一些平台的连通性探测会用 GET。实测本 SDK 对「无会话的 GET」返回
+    ``400 {"message": "Missing session ID"}``（必须先 initialize 拿 Mcp-Session-Id），
+    这是正确行为；这里断言的是「端点存在且不炸」——落到 404/5xx 就意味着部署错了。
+    """
+    with HttpServer(StartupLLM(), token=TOKEN) as srv:
+        r = httpx.get(
+            srv.url,
+            headers={
+                "authorization": f"Bearer {TOKEN}",
+                "accept": "application/json, text/event-stream",
+            },
+            timeout=10,
+        )
+        assert r.status_code != 404, "端点不存在（URL 里必须带 /mcp）"
+        assert r.status_code < 500, f"GET 不应 5xx，实际 {r.status_code}"
