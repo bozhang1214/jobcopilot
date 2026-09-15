@@ -30,7 +30,10 @@ import argparse
 import json
 import secrets
 import sys
+from collections.abc import AsyncIterator
+from contextlib import AsyncExitStack, asynccontextmanager
 from typing import Any
+from urllib.parse import parse_qs
 
 from jobcopilot import __version__
 from jobcopilot.core.logging import get_logger
@@ -63,6 +66,11 @@ from jobcopilot.mcp.tools import (
 logger = get_logger(__name__)
 
 SERVER_NAME = "jobcopilot"
+
+#: Streamable HTTP 端点路径（扣子 / 百炼 / Dify / 火山 AgentKit 用）
+STREAMABLE_PATH = "/mcp"
+#: SSE 挂载前缀（**百度千帆的 MCP 节点只支持 SSE**）；消息端点会落在 <该前缀>/messages/
+SSE_MOUNT_PATH = "/sse"
 
 INSTRUCTIONS = """JobCopilot —— 求职分析内核。
 
@@ -329,6 +337,29 @@ def _bearer_token(scope: Any) -> str | None:
     return None
 
 
+def _query_token(scope: Any) -> str | None:
+    """从 ``?token=`` / ``?access_token=`` 取令牌（兜底方案）。
+
+    **为什么需要**：百度千帆的 MCP 配置 JSON **只有 url 字段、没有 headers**，
+    调用方无法传自定义头，只能把令牌放进查询串（其节点还只支持 SSE）。
+
+    ⚠️ 查询串**可能进反向代理的访问日志**，所以这属于兜底：能用
+    ``Authorization: Bearer`` 时优先用它。文档里也是这个优先级。
+    """
+    # 显式标注打断 Any 链：scope 是 ASGI 的 Any，不标注会让 parse_qs 的结果也变 Any
+    raw_qs: str = (scope.get("query_string") or b"").decode("latin-1")
+    try:
+        params: dict[str, list[str]] = parse_qs(raw_qs)
+    except (UnicodeDecodeError, ValueError):  # pragma: no cover - 畸形查询串
+        return None
+    for name in ("token", "access_token"):
+        values: list[str] | None = params.get(name)
+        if values and values[0].strip():
+            found: str = values[0].strip()
+            return found
+    return None
+
+
 async def _send_json(send: Any, status: int, payload: dict[str, Any]) -> None:
     """最简 ASGI JSON 响应（避免为一处错误响应引入额外依赖）。"""
     body = json.dumps(payload, ensure_ascii=False).encode("utf-8")
@@ -349,7 +380,9 @@ class BearerAuthMiddleware:
     """访问令牌校验（纯 ASGI 中间件）。
 
     刻意不用 Starlette 的 ``BaseHTTPMiddleware``：它会把下游放进**另一个任务**、
-    并给流式响应套一层缓冲，而 streamable HTTP 恰恰是流式端点。
+    并给流式响应套一层缓冲，而 streamable HTTP 与 SSE 恰恰都是流式端点。
+
+    令牌来源优先级：``Authorization: Bearer`` > 查询串 ``?token=``。
     """
 
     def __init__(self, app: Any, token: str) -> None:
@@ -360,14 +393,15 @@ class BearerAuthMiddleware:
         if scope.get("type") != "http":
             await self.app(scope, receive, send)
             return
-        provided = _bearer_token(scope)
+        provided = _bearer_token(scope) or _query_token(scope)
         if provided is None:
             await _send_json(
                 send,
                 401,
                 {
                     "error": "缺少访问令牌",
-                    "hint": "请求需带 Authorization: Bearer <JOBCOPILOT_HTTP_TOKEN>",
+                    "hint": "请求需带 Authorization: Bearer <JOBCOPILOT_HTTP_TOKEN>"
+                    "（不支持自定义头的客户端可用 ?token=<令牌> 兜底）",
                 },
             )
             return
@@ -393,21 +427,55 @@ def apply_transport_security(server: Any, config: ServerConfig) -> None:
     )
 
 
+def build_http_app(server: Any, config: ServerConfig, token: str = "") -> Any:
+    """构造**同时**提供 streamable HTTP 与 SSE 的 ASGI 应用。
+
+    两条传输都要的原因（实测过的平台差异）：
+
+    - **Streamable HTTP**（``POST /mcp``）：扣子、阿里百炼（其 FAQ 明确
+      ``streamableHttp`` 必须对应 ``POST /mcp``）、Dify、火山 AgentKit；
+    - **SSE**（``GET /sse`` + ``POST /sse/messages/``）：**百度千帆的 MCP 节点只支持
+      SSE**，不支持 Streamable HTTP。
+
+    做法：把两个子应用的 routes 合并进一个 Starlette，并用 ``AsyncExitStack``
+    组合两者的 lifespan——两个 session manager 都必须进入 lifespan，否则传输不工作
+    （只合并 routes 会得到一个「连得上但没有会话」的服务，很难排查）。
+    """
+    from starlette.applications import Starlette
+
+    http_app = server.streamable_http_app()
+    sse_app = server.sse_app(mount_path=SSE_MOUNT_PATH)
+
+    @asynccontextmanager
+    async def lifespan(app: Any) -> AsyncIterator[None]:
+        async with AsyncExitStack() as stack:
+            await stack.enter_async_context(sse_app.router.lifespan_context(sse_app))
+            await stack.enter_async_context(http_app.router.lifespan_context(http_app))
+            yield
+
+    app: Any = Starlette(
+        routes=list(sse_app.routes) + list(http_app.routes),
+        lifespan=lifespan,
+    )
+    if token:
+        app = BearerAuthMiddleware(app, token)
+    return app
+
+
 def run_http(server: Any, config: ServerConfig) -> None:
-    """以 streamable HTTP 方式运行（必要时套上访问令牌校验）。"""
+    """以 streamable HTTP + SSE 方式运行（必要时套上访问令牌校验）。"""
     import uvicorn
 
     server.settings.host = config.host
     server.settings.port = config.port
     apply_transport_security(server, config)
+    app = build_http_app(server, config, config.http_token)
 
-    app: Any = server.streamable_http_app()
-    if config.http_token:
-        app = BearerAuthMiddleware(app, config.http_token)
-
+    base = f"http://{config.host}:{config.port}"
     print(
-        f"JobCopilot MCP Server（streamable-http）"
-        f" http://{config.host}:{config.port}/mcp"
+        "JobCopilot MCP Server"
+        f"  streamable-http={base}{STREAMABLE_PATH}"
+        f"  sse={base}{SSE_MOUNT_PATH}"
         f"  provider={config.provider}"
         f"  source_path={'允许' if config.allow_source_path else '禁用'}"
         f"  访问令牌={'已启用' if config.http_token else '未启用'}"

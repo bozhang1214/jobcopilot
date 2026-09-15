@@ -26,7 +26,11 @@ from mcp.client.streamable_http import streamablehttp_client  # noqa: E402
 
 from jobcopilot.mcp import request_keys  # noqa: E402
 from jobcopilot.mcp.config import ServerConfig, is_loopback_host  # noqa: E402
-from jobcopilot.mcp.server import BearerAuthMiddleware, build_server  # noqa: E402
+from jobcopilot.mcp.server import (  # noqa: E402
+    apply_transport_security,
+    build_http_app,
+    build_server,
+)
 from jobcopilot.mcp.tools import ToolContext  # noqa: E402
 
 TOKEN = "tok-0123456789abcdef"
@@ -283,7 +287,11 @@ def _free_port() -> int:
 
 
 class HttpServer:
-    """在后台线程里跑一个真实的 streamable HTTP MCP 服务。"""
+    """在后台线程里跑一个真实的 MCP HTTP 服务（走生产路径 build_http_app）。
+
+    刻意直接用生产的 ``build_http_app``：这样测试覆盖的就是真实部署时的那套
+    routes + lifespan 组合（streamable HTTP + SSE 两条传输），而不是另搭一份。
+    """
 
     def __init__(self, startup_llm: Any, *, token: str | None) -> None:
         self.port = _free_port()
@@ -297,12 +305,8 @@ class HttpServer:
         self.server = build_server(self.cfg, llm=startup_llm)
         self.server.settings.host = self.cfg.host
         self.server.settings.port = self.cfg.port
-        from jobcopilot.mcp.server import apply_transport_security
-
         apply_transport_security(self.server, self.cfg)
-        app: Any = self.server.streamable_http_app()
-        if token:
-            app = BearerAuthMiddleware(app, token)
+        app = build_http_app(self.server, self.cfg, token or "")
         uv = uvicorn.Config(app, host="127.0.0.1", port=self.port, log_level="error")
         self._uv = uvicorn.Server(uv)
         self._thread = threading.Thread(target=self._uv.run, daemon=True)
@@ -310,6 +314,10 @@ class HttpServer:
     @property
     def url(self) -> str:
         return f"http://127.0.0.1:{self.port}/mcp"
+
+    @property
+    def sse_url(self) -> str:
+        return f"http://127.0.0.1:{self.port}/sse"
 
     def __enter__(self) -> "HttpServer":
         self._thread.start()
@@ -481,3 +489,98 @@ def test_endpoint_get_is_not_5xx() -> None:
         )
         assert r.status_code != 404, "端点不存在（URL 里必须带 /mcp）"
         assert r.status_code < 500, f"GET 不应 5xx，实际 {r.status_code}"
+
+
+# ============================================================
+# 五、SSE 传输与 query token 兜底（百度千帆只支持 SSE、且配置里没有 headers）
+# ============================================================
+
+
+def test_sse_transport_streams_endpoint_event() -> None:
+    """``/sse`` 必须真的挂上了 SSE 传输。
+
+    这里走 **HTTP 层**而不是官方 sse_client：sse_client 的 teardown 在测试里容易挂住
+    （等流关闭），而「首个 ``event: endpoint`` 事件」已经足以证明 SSE 传输在正常工作
+    —— 该事件由 SSE transport 自己发出，并告知客户端消息端点。
+
+    为什么必须支持 SSE：**百度千帆的工作流 MCP 节点只支持 SSE**（不支持 Streamable
+    HTTP），而火山 AgentKit 反过来只支持 Streamable HTTP，所以两条都得有。
+    """
+    with HttpServer(StartupLLM(), token=TOKEN) as srv:
+        timeout = httpx.Timeout(5.0, read=5.0)
+        with httpx.stream(
+            "GET",
+            srv.sse_url,
+            headers={
+                "authorization": f"Bearer {TOKEN}",
+                "accept": "text/event-stream",
+            },
+            timeout=timeout,
+        ) as r:
+            assert r.status_code == 200
+            assert "text/event-stream" in r.headers.get("content-type", "")
+            buf = ""
+            for line in r.iter_lines():
+                buf += line + "\n"
+                if "/sse/messages" in buf:
+                    break
+            assert "event: endpoint" in buf
+            assert "/sse/messages" in buf
+
+
+def test_sse_endpoint_requires_token() -> None:
+    """SSE 端点同样受访问令牌保护（不能因为「千帆没 headers」就裸奔）。"""
+    with HttpServer(StartupLLM(), token=TOKEN) as srv:
+        r = httpx.get(
+            srv.sse_url,
+            headers={"accept": "text/event-stream"},
+            timeout=10,
+        )
+        assert r.status_code == 401
+
+
+def test_query_token_is_accepted_as_fallback() -> None:
+    """``?token=`` 兜底：千帆的 MCP 配置 JSON 只有 url、没有 headers 字段。"""
+    with HttpServer(StartupLLM(), token=TOKEN) as srv:
+        r = httpx.post(
+            f"{srv.url}?token={TOKEN}",
+            json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+            headers={
+                "content-type": "application/json",
+                "accept": "application/json, text/event-stream",
+            },
+            timeout=10,
+        )
+        # 没有 Mcp-Session-Id 时为 400，说明**已通过鉴权**进到协议层
+        assert r.status_code == 400
+        assert "session" in r.text.lower()
+
+
+def test_query_token_wrong_is_rejected() -> None:
+    with HttpServer(StartupLLM(), token=TOKEN) as srv:
+        r = httpx.post(
+            f"{srv.url}?token=wrong",
+            json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+            headers={
+                "content-type": "application/json",
+                "accept": "application/json, text/event-stream",
+            },
+            timeout=10,
+        )
+        assert r.status_code == 401
+
+
+def test_authorization_header_wins_over_query_token() -> None:
+    """显式头优先于查询串：两者都在且头是对的 → 应通过。"""
+    with HttpServer(StartupLLM(), token=TOKEN) as srv:
+        r = httpx.post(
+            f"{srv.url}?token=stale-token",
+            json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+            headers={
+                "content-type": "application/json",
+                "accept": "application/json, text/event-stream",
+                "authorization": f"Bearer {TOKEN}",
+            },
+            timeout=10,
+        )
+        assert r.status_code == 400
