@@ -293,14 +293,16 @@ class HttpServer:
     routes + lifespan 组合（streamable HTTP + SSE 两条传输），而不是另搭一份。
     """
 
-    def __init__(self, startup_llm: Any, *, token: str | None) -> None:
+    def __init__(self, startup_llm: Any, *, token: str | None, base_path: str = "") -> None:
         self.port = _free_port()
+        self.base_path = base_path
         self.cfg = ServerConfig(
             transport="streamable-http",
             host="127.0.0.1",
             port=self.port,
             http_token=token or "",
             allowed_hosts=["127.0.0.1"],
+            http_base_path=base_path,
         )
         self.server = build_server(self.cfg, llm=startup_llm)
         self.server.settings.host = self.cfg.host
@@ -313,11 +315,11 @@ class HttpServer:
 
     @property
     def url(self) -> str:
-        return f"http://127.0.0.1:{self.port}/mcp"
+        return f"http://127.0.0.1:{self.port}{self.base_path}/mcp"
 
     @property
     def sse_url(self) -> str:
-        return f"http://127.0.0.1:{self.port}/sse"
+        return f"http://127.0.0.1:{self.port}{self.base_path}/sse"
 
     def __enter__(self) -> "HttpServer":
         self._thread.start()
@@ -584,3 +586,64 @@ def test_authorization_header_wins_over_query_token() -> None:
             timeout=10,
         )
         assert r.status_code == 400
+
+
+# ============================================================
+# 六、子路径部署（反代把服务挂在 /jobcopilot 下）
+# ============================================================
+
+
+def test_base_path_streamable_endpoint() -> None:
+    """带路径前缀时，streamable 端点落在 ``<前缀>/mcp``。"""
+    with HttpServer(StartupLLM(), token=TOKEN, base_path="/jobcopilot") as srv:
+        assert srv.url.endswith("/jobcopilot/mcp")
+        # 无会话的 POST → 400 说明鉴权已过、进到协议层
+        r = httpx.post(
+            srv.url,
+            json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+            headers={
+                "content-type": "application/json",
+                "accept": "application/json, text/event-stream",
+                "authorization": f"Bearer {TOKEN}",
+            },
+            timeout=10,
+        )
+        assert r.status_code == 400
+        # 未带前缀的老路径不应存在（避免「配了前缀但实际没生效」的假象）
+        r2 = httpx.post(
+            f"http://127.0.0.1:{srv.port}/mcp",
+            json={"jsonrpc": "2.0", "id": 1, "method": "tools/list"},
+            headers={
+                "content-type": "application/json",
+                "accept": "application/json, text/event-stream",
+                "authorization": f"Bearer {TOKEN}",
+            },
+            timeout=10,
+        )
+        assert r2.status_code == 404
+
+
+def test_base_path_sse_message_endpoint_keeps_prefix() -> None:
+    """**这个特性存在的理由**：SSE 把消息端点作为绝对路径告诉客户端，
+    必须带上路径前缀，否则客户端会去请求 ``/sse/messages/``（丢掉 ``/jobcopilot``）
+    而失败。百度千帆只支持 SSE，所以这条不能错。
+    """
+    with HttpServer(StartupLLM(), token=TOKEN, base_path="/jobcopilot") as srv:
+        timeout = httpx.Timeout(5.0, read=5.0)
+        with httpx.stream(
+            "GET",
+            srv.sse_url,
+            headers={
+                "authorization": f"Bearer {TOKEN}",
+                "accept": "text/event-stream",
+            },
+            timeout=timeout,
+        ) as r:
+            assert r.status_code == 200
+            buf = ""
+            for line in r.iter_lines():
+                buf += line + "\n"
+                if "/jobcopilot/sse/messages" in buf:
+                    break
+            assert "event: endpoint" in buf
+            assert "/jobcopilot/sse/messages" in buf

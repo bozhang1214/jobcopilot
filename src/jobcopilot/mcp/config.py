@@ -38,6 +38,9 @@ ENV_HTTP_ALLOWED_HOSTS = "JOBCOPILOT_HTTP_ALLOWED_HOSTS"
 ENV_HTTP_ALLOWED_ORIGINS = "JOBCOPILOT_HTTP_ALLOWED_ORIGINS"
 #: 显式放弃「非回环必须带令牌」的保护（仅限可信内网；会打印醒目警告）
 ENV_ALLOW_PUBLIC_BIND = "JOBCOPILOT_ALLOW_PUBLIC_BIND"
+#: HTTP 形态的**路径前缀**（如 ``/jobcopilot``）。反向代理把子路径整段透传时必填，
+#: 否则 SSE 会把消息端点写成不带前缀的绝对路径，客户端请求到错误地址。
+ENV_HTTP_BASE_PATH = "JOBCOPILOT_HTTP_BASE_PATH"
 
 DEFAULT_PROVIDER = "deepseek"
 
@@ -139,6 +142,8 @@ class ServerConfig:
     allowed_origins: list[str] = field(default_factory=list)
     #: 显式允许「非回环 + 无令牌」（仅限可信内网）
     allow_public_bind: bool = False
+    #: HTTP 路径前缀（``""`` 或 ``/xxx``，规范化后不带尾斜杠）
+    http_base_path: str = ""
 
     def __post_init__(self) -> None:
         """补默认值：画像路径、HTTP 下的 source_path 默认关闭。"""
@@ -153,6 +158,21 @@ class ServerConfig:
         root = os.environ.get(ENV_SOURCE_ROOT)
         if root:
             self.source_root = Path(root)
+        self.__post_init_http_base_path()
+
+    def __post_init_http_base_path(self) -> None:
+        """规范化路径前缀：去首尾空白、保证以 ``/`` 开头、去掉尾斜杠。
+
+        为什么必须有这个东西：反向代理常常把服务挂在**子路径**下
+        （例如 ``https://host/jobcopilot/mcp``）。而 MCP 的 SSE 传输会把
+        **消息端点**作为绝对路径告诉客户端（``/sse/messages/?session_id=...``），
+        客户端按绝对路径请求时就会丢掉前缀、打到错误地址——只有让内核自己知道
+        前缀，才能把消息端点写成 ``/jobcopilot/sse/messages/``。
+        """
+        raw = (self.http_base_path or "").strip().rstrip("/")
+        if raw and not raw.startswith("/"):
+            raw = "/" + raw
+        self.http_base_path = raw
 
     @property
     def is_http(self) -> bool:
@@ -243,4 +263,5 @@ class ServerConfig:
             allowed_hosts=_env_list(ENV_HTTP_ALLOWED_HOSTS),
             allowed_origins=_env_list(ENV_HTTP_ALLOWED_ORIGINS),
             allow_public_bind=_env_bool(ENV_ALLOW_PUBLIC_BIND, False),
+            http_base_path=os.environ.get(ENV_HTTP_BASE_PATH, ""),
         )

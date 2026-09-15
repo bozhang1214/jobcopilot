@@ -440,11 +440,25 @@ def build_http_app(server: Any, config: ServerConfig, token: str = "") -> Any:
     做法：把两个子应用的 routes 合并进一个 Starlette，并用 ``AsyncExitStack``
     组合两者的 lifespan——两个 session manager 都必须进入 lifespan，否则传输不工作
     （只合并 routes 会得到一个「连得上但没有会话」的服务，很难排查）。
+
+    **路径前缀**（``JOBCOPILOT_HTTP_BASE_PATH``）：反向代理把服务挂在子路径下时
+    （如 ``https://host/jobcopilot/mcp``）**必须**设置它。原因：SSE 传输会把
+    **消息端点**以绝对路径告诉客户端（``/sse/messages/?session_id=...``），
+    客户端按绝对路径请求就会丢掉前缀、打到错误地址。让内核自己知道前缀，
+    才能把消息端点写成 ``/jobcopilot/sse/messages/``。
     """
     from starlette.applications import Starlette
 
+    base = config.http_base_path
+    streamable_path = f"{base}{STREAMABLE_PATH}"
+    sse_path = f"{base}{SSE_MOUNT_PATH}"
+    # 让 SDK 用带前缀的路径注册路由（streamable 的单端点 + SSE 的流端点）
+    server.settings.streamable_http_path = streamable_path
+    server.settings.sse_path = sse_path
+
     http_app = server.streamable_http_app()
-    sse_app = server.sse_app(mount_path=SSE_MOUNT_PATH)
+    # mount_path 决定 SSE 把「消息端点」写成什么路径：base/sse + /messages/
+    sse_app = server.sse_app(mount_path=sse_path)
 
     @asynccontextmanager
     async def lifespan(app: Any) -> AsyncIterator[None]:
@@ -471,11 +485,12 @@ def run_http(server: Any, config: ServerConfig) -> None:
     apply_transport_security(server, config)
     app = build_http_app(server, config, config.http_token)
 
-    base = f"http://{config.host}:{config.port}"
+    base = f"http://{config.host}:{config.port}{config.http_base_path}"
     print(
         "JobCopilot MCP Server"
         f"  streamable-http={base}{STREAMABLE_PATH}"
         f"  sse={base}{SSE_MOUNT_PATH}"
+        f"  base_path={config.http_base_path or '(无)'}"
         f"  provider={config.provider}"
         f"  source_path={'允许' if config.allow_source_path else '禁用'}"
         f"  访问令牌={'已启用' if config.http_token else '未启用'}"
