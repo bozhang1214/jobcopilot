@@ -3,6 +3,8 @@
 JobCopilot 的 MCP Server 可以接到各云端平台。**先读 [`PRIVACY.md`](PRIVACY.md)**——
 云端接入意味着 JD 会经过平台方服务器，隐私等级低于本地 stdio 模式。
 
+> 本目录就是**各平台配置手册全集**：5 个云端平台 + 本地 DSH + 宿主内嵌 SEKB + 公网暴露步骤 + 隐私说明。
+
 ## 我该走哪条？
 
 | 场景 | 走哪条 |
@@ -20,10 +22,12 @@ JobCopilot 的 MCP Server 可以接到各云端平台。**先读 [`PRIVACY.md`](
 | [百度千帆](qianfan.md) | 🔴 **仅 SSE** | `https://域名/sse?token=<令牌>` | **只能放查询串**（配置里没有 headers 字段） | 返回 ≤ 1M；CFC 节点超时约 10 秒 |
 | [火山 HiAgent](hiagent.md) | Streamable HTTP（+ stdio） | `https://域名/mcp` | `Headers`（任意名） | 无公开文档；AgentKit 不支持 SSE-only |
 | [Dify](dify.md) | HTTP（Streamable HTTP / SSE） | `https://域名/mcp` | 自定义请求头 | 必须关掉 DCR；默认超时 60 秒需调大 |
+| [DSH](dsh.md)（本地） | **stdio** | 不填 URL（进程内拉起） | 无需（本机） | 补丁层必须用 `insert:` 包裹；`toolCallTimeoutMs` 默认 60 秒要调到 180000 |
+| [SEKB](sekb.md)（宿主内嵌） | stdio / direct | 不填 URL | 无需（同容器） | 必须传 `JOBCOPILOT_PROMPTS_DIR`，否则宿主热改提示词被静默换成 base |
 
 ## 三平台共同的最小可行配置
 
-调研（2026-02）得到的硬性条件，JobCopilot 已全部满足：
+调研（2026-09-15）得到的硬性条件，JobCopilot 已全部满足：
 
 | # | 条件 | 状态 |
 |---|---|---|

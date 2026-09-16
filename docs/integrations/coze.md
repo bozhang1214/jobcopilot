@@ -63,7 +63,9 @@
 3. **调用来源是动态 IP**；要精准放行需申请固定 IP 白名单。
 4. **无官方超时说明**。批量分析（`analyze_jobs_batch`）耗时可能较长，建议先用少量职位试；
    若频繁超时，请把批量任务拆小（见 `PRIVACY.md` 同目录下的性能说明）。
-5. **工具描述占上下文与积分**：JobCopilot 暴露 6 个工具，若同时挂多个 MCP 注意额度。
+5. **工具描述占上下文与积分**：JobCopilot 暴露 **7 个**工具（`analyze_job` / `analyze_jobs_batch` /
+   `self_check` / `get_profile` / `save_profile` / `list_prompt_packs` / `sync_prompts`），
+   若同时挂多个 MCP 注意额度。
 
 ## 4. 降级方案：用插件（OpenAPI）接入
 

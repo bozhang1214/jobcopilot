@@ -45,7 +45,7 @@ dsh plugin --profile <profile> add @deepseek-ai/dsh-mcp-client
 
 ## 3. 怎么用
 
-工具会以 `mcp__jobcopilot__<工具名>` 出现（6 个）：
+工具会以 `mcp__jobcopilot__<工具名>` 出现（**7 个**）：
 
 | 工具 | 用途 |
 |---|---|
@@ -54,6 +54,7 @@ dsh plugin --profile <profile> add @deepseek-ai/dsh-mcp-client
 | `get_profile` / `save_profile` | 读写求职者画像 |
 | `list_prompt_packs` | 列出职能包 |
 | `sync_prompts` | 把提示词同步到本地目录（之后可直接改） |
+| `self_check` | 固定 <1KB 的自检响应（版本/传输/提示词来源）：用来界定「响应为空」是链路问题还是体积问题 |
 
 典型对话：
 
